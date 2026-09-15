@@ -1,0 +1,48 @@
+# Build directories
+build/
+build_cl/
+Debug/
+Release/
+_out/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# CMake build artifacts
+_cmake_build.log
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Project specific
+Firmware/TMC5160H7Cmake_StepMotor/.cl/
+Firmware/TMC5160H7Cmake_StepMotor/require.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Compiled files
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.axf
+*.out
+*.d
+*.lst
+
+# STM32 specific
+*.ioc.bak
+*.xml
+*.mxproject
+
+# Hardware history
+Hardhare/StepMotor_2Routes_TMC5160/History/

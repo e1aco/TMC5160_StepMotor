@@ -460,6 +460,7 @@ void TMC5160_EStop(uint8_t chip)
  * 依据 TMC5160A_Datasheet_Rev1.14.ch18_18_sine_wave_look.md: PWMCONF  2026-08-24
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p038.md: IHOLD_IRUN/TPOWERDOWN/TCOOLTHRS  2026-09-10
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p045.md: ENCMODE/ENC_CONST  2026-09-01
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p006.md: 使能时序(ENN)  2026-08-24
  */
 void TMC5160_Init(void)
 {
@@ -479,9 +480,7 @@ void TMC5160_Init(void)
         chip->mode = TMC5160_MODE_POSITION;
         chip->closed_loop = 0;
 
-        /* 保持 ENN 引脚高电平(禁用), 上电默认寄存器尚未配置, 此时使能会瞬时过流
-         * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p006.md 使能时序:
-         *   上电→保持使能脚上拉(禁用)→写入电机配置→延时→拉低使能→延时 */
+        /* 上电保持 ENN 高(禁用)，写配置后再使能，避免瞬时过流 */
 
         /* 清除 Power-on 残留错误，同时验证 SPI 通信 */
         TMC5160_WriteReg(chip, REG_GSTAT, 0x07);
@@ -517,8 +516,7 @@ void TMC5160_Init(void)
         /* 电机电流: IHOLDDELAY=8 / IRUN=20(3.02A RMS) / IHOLD=6(1.01A) */
         TMC5160_WriteReg(chip, REG_IHOLD_IRUN, (8 << 16) | (20 << 8) | 6);
 
-        /* 静止降流延迟: 2^18 tCLK 单位, 40 → 40×262144/15e6 ≈ 699ms
-         * 需 >=2 保证 StealthChop PWM 自动调校正常 */
+        /* 静止降流延迟: 40 → 约 699ms */
         TMC5160_WriteReg(chip, REG_TPOWERDOWN, 40);
 
         /* CoolStep 关闭 */
@@ -527,10 +525,7 @@ void TMC5160_Init(void)
         /* CoolStep 速度窗口: 0 = 关闭 */
         TMC5160_WriteReg(chip, REG_TCOOLTHRS, 0);
 
-        /* TPWMTHRS=0: en_pwm_mode=0(GCONF=0x00) 下本寄存器不参与斩波切换, 写 0 保
-         * 源工程行为等价 (2026-09-10 撤静音对照后注释修正)
-         * 依据 TMC5160A_Datasheet_Rev1.14.ch05.p038.md:
-         *   0x10-0x1F 速度相关控制寄存器组 */
+        /* TPWMTHRS=0（本模式不参与斩波切换） */
         TMC5160_WriteReg(chip, REG_TPWMTHRS, 0);
 
         /* 使能时序: 配置写完后延时稳定, 再拉低 ENN 引脚使能, 随后延时等待校准

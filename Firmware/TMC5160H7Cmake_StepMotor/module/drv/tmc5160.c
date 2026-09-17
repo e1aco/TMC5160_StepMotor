@@ -455,7 +455,7 @@ void TMC5160_EStop(uint8_t chip)
  * @注意 模式固定 SPI 模式（H7 板模式引脚硬接线），closed_loop 默认关
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p032.md: GCONF/COOLCONF/TPWMTHRS  2026-08-24
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p048.md: CHOPCONF  2026-08-24
- * 依据 TMC5160A_Datasheet_Rev1.14.ch03.p017.md: 驱动配置寄存器.DRVSTRENGTH  2026-08-24
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch03.p017.md: DRV_CONF.DRVSTRENGTH  2026-08-24
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p035.md: SHORT_CONF  2026-09-10
  * 依据 TMC5160A_Datasheet_Rev1.14.ch18_18_sine_wave_look.md: PWMCONF  2026-08-24
  * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p038.md: IHOLD_IRUN/TPOWERDOWN/TCOOLTHRS  2026-09-10

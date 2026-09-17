@@ -1,0 +1,18 @@
+{
+  "last_flash": {
+    "provider": "openocd",
+    "action": "flash",
+    "board": "",
+    "interface": "",
+    "target": "stm32h7x",
+    "search": "",
+    "adapter_speed": "",
+    "transport": "swd",
+    "flash_file": "C:\\Users\\admin\\Desktop\\XM\\ELACO_StepMotorTMC5160\\Firmware\\TMC5160H7Cmake_StepMotor\\build_cl\\TMC5160H7_StepMotor.hex",
+    "artifacts": {
+      "flash_file": "C:\\Users\\admin\\Desktop\\XM\\ELACO_StepMotorTMC5160\\Firmware\\TMC5160H7Cmake_StepMotor\\build_cl\\TMC5160H7_StepMotor.hex",
+      "input_file": "C:\\Users\\admin\\Desktop\\XM\\ELACO_StepMotorTMC5160\\Firmware\\TMC5160H7Cmake_StepMotor\\build_cl\\TMC5160H7_StepMotor.hex"
+    },
+    "timestamp": "2026-09-14T14:23:30+08:00"
+  }
+}

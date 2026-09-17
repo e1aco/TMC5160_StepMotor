@@ -19,9 +19,11 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 
-# Project specific
-Firmware/TMC5160H7Cmake_StepMotor/.cl/
-Firmware/TMC5160H7Cmake_StepMotor/require.md
+# .cl 权威内容纳入版本控制(供 log/memory 精简的 git 兜底); 仅排除体积/会话产物
+Firmware/TMC5160H7Cmake_StepMotor/.cl/capture/
+Firmware/TMC5160H7Cmake_StepMotor/.cl/datasheet/
+Firmware/TMC5160H7Cmake_StepMotor/.cl/backup_pregen_*/
+Firmware/TMC5160H7Cmake_StepMotor/.cl/sim/
 
 # OS files
 .DS_Store

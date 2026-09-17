@@ -22,7 +22,7 @@
 #include "tim_test.h"   /* TEST_TIM_* 探针宏: 宏版实测/生产版空宏零开销 (probe.md) */
 
 /* ==== CS 高电平间隔: tCSH > 2*tCLK+10ns=320ns @6.45MHz (ch04 §4.3), 取 5us 裕量 ==== */
-/* 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md: SPI 时序 */
+/* 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md: SPI 时序 */
 /* 依据 .cl/memory/config.md: DWT=CPU=SYSCLK=480MHz(D1CPRE=1), 1tick=2.083ns */
 
 #define TMC5160_CS_HIGH_US       5U
@@ -37,7 +37,7 @@
 #define TMC5160_SPI_POLL_GUARD   100000UL
 
 /* ==== TMC5160 寄存器地址（usr 层只读常量） ==== */
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md: 寄存器映射 */
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p032.md: 寄存器映射 */
 #define REG_GCONF          0x00
 #define REG_GSTAT          0x01
 #define REG_IHOLD_IRUN     0x10
@@ -59,7 +59,7 @@
 #define REG_VSTOP          0x2B
 #define REG_TZEROWAIT      0x2C
 #define REG_XTARGET        0x2D
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p042.md: SW_MODE/RAMP_STAT */
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p042.md: SW_MODE/RAMP_STAT */
 #define REG_SW_MODE        0x34
 #define REG_RAMP_STAT      0x35
 #define REG_ENCMODE        0x38
@@ -88,7 +88,7 @@ static const TMC5160_PROFILE_T s_profiles[TMC5160_PROFILE_COUNT] = {
     {0, 10, 0, 0, 10000, 50000, 10000, 10000, 10},
     {0, 10, 0, 0, 20000, 100000, 20000, 20000, 10},
     /* 组5 超高速: VMAX=2863311=50rev/s @fCLK=15MHz, AMAX/DMAX=40000(加速4.09M µsteps/s²)
-     * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
+     * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
      *   VMAX[µsteps/t] t=2^24/fCLK → 50×51200×2^24/15e6=2863311(上限2^23-512=8388608 OK)
      *   AMAX[µsteps/ta²] ta²=2^41/fCLK² → 40000→4.09M µsteps/s² */
     {0, 10, 0, 0, 40000, 2863311, 40000, 40000, 10},
@@ -138,7 +138,7 @@ static uint8_t S_RegValid(uint32_t reg_value)
  * @输出 TMC5160_OK / TMC5160_ERR
  * @说明 寄存器级全双工收发，替代 HAL_SPI_TransmitReceive 以去除 HAL 固定开销
  * @注意 SPI 模式/分频/CPOL/CPHA 仍由 CubeMX HAL 配置，本函数只替换收发路径
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
  *   40-bit 数据报(8bit 地址 + 32bit 数据)，需两报读一寄存器
  * 依据 RM0433(STM32H7) SPI 传输序列(HAL stm32h7xx_hal_spi.c:1410-1647):
  *   SPI_CR2.TSIZE 设数据数 → SPI_CR1.SPE 使能 → SPI_CR1.CSTART 启动
@@ -312,7 +312,7 @@ void TMC5160_DelayMs(uint32_t ms)
  * @说明 通过 SPI 写入 TMC5160 寄存器
  *   SPI 数据报(40-bit, 5字节): Byte0=bit7(1写)+bit6-0地址, Byte1-4=数据
  * @注意 寄存器级收发(S_SpiTransfer)，配置仍由 CubeMX HAL 提供
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
  *   SPI DATAGRAM 格式; 写访问地址加 0x80 (ch06.p031)
  */
 uint8_t TMC5160_SpiWrite(uint8_t chip, uint8_t reg_addr, uint32_t data)
@@ -334,7 +334,7 @@ uint8_t TMC5160_SpiWrite(uint8_t chip, uint8_t reg_addr, uint32_t data)
     TEST_TIM_Stop(0);
 
     /* CS 拉高间隔: 保证背靠背写帧之间 tCSH 达标
-     * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md §4.3 表:
+     * 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md §4.3 表:
      *   tCSH > 2*tCLK + 10ns; SCK=6.45MHz → tCLK=155ns → 2*155+10=320ns 最低要求,
      *   取 5us ≈ 15x 裕量(与 ReadReg 两报间隔同值) */
     S_DelayUs(TMC5160_CS_HIGH_US);
@@ -348,7 +348,7 @@ uint8_t TMC5160_SpiWrite(uint8_t chip, uint8_t reg_addr, uint32_t data)
  * @说明 通过 SPI 读取 TMC5160 寄存器，需两报：第一报丢弃旧数据，第二报取新数据
  * @注意 两报之间 CS 拉高需满足 tCSH > 2*tCLK+10ns (datasheet ch04 §4.3 表,
  *       SCK=4MHz → 510ns), 取 10us ≈ 20x 裕量
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md 第4章:
  *   SPI DATAGRAM 格式
  */
 uint32_t TMC5160_SpiRead(uint8_t chip, uint8_t reg_addr)
@@ -453,10 +453,13 @@ void TMC5160_EStop(uint8_t chip)
  * @输出 无
  * @说明 初始化两片 TMC5160：默认配置/清错/基础寄存器/编码器/电流/使能
  * @注意 模式固定 SPI 模式（H7 板模式引脚硬接线），closed_loop 默认关
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md: GCONF
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p048.md: CHOPCONF
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p038.md: IHOLD_IRUN/TPOWERDOWN
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p045.md: ENCMODE/ENC_CONST
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p032.md: GCONF/COOLCONF/TPWMTHRS  2026-08-24
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p048.md: CHOPCONF  2026-08-24
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch03.p017.md: 驱动配置寄存器.DRVSTRENGTH  2026-08-24
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p035.md: SHORT_CONF  2026-09-10
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch18_18_sine_wave_look.md: PWMCONF  2026-08-24
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p038.md: IHOLD_IRUN/TPOWERDOWN/TCOOLTHRS  2026-09-10
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p045.md: ENCMODE/ENC_CONST  2026-09-01
  */
 void TMC5160_Init(void)
 {
@@ -477,7 +480,7 @@ void TMC5160_Init(void)
         chip->closed_loop = 0;
 
         /* 保持 ENN 引脚高电平(禁用), 上电默认寄存器尚未配置, 此时使能会瞬时过流
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p006.md 使能时序:
+         * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p006.md 使能时序:
          *   上电→保持使能脚上拉(禁用)→写入电机配置→延时→拉低使能→延时 */
 
         /* 清除 Power-on 残留错误，同时验证 SPI 通信 */
@@ -493,64 +496,25 @@ void TMC5160_Init(void)
             gstat = TMC5160_ReadReg(chip, REG_GSTAT);
         }
 
-        /* 斩波模式: GCONF=0x00 → en_pwm_mode=0, 全程 SpreadCycle
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md: GCONF.en_pwm_mode
-         * 历史: 2026-09-09 静音对照测试(0x04)已毕——SOAK r4 证明静音直调同样 100%
-         *       丢步不转, 对照结论=非斩波模式独有问题; 2026-09-10 撤钩子回生产值,
-         *       恢复 S2/OL 检测有效性(OL 精度 SpreadCycle 最高, ch11 §11.3) */
+        /* GCONF: en_pwm_mode=0, 全程 SpreadCycle */
         TMC5160_WriteReg(chip, REG_GCONF, 0x00);
 
-        /* CHOPCONF: TOFF=5, TBL=%11(54clk 最长死区), MRES=%0000(256微步) → 0x000181C5
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p051.md / ch06.p052.md: CHOPCONF
-         * 说明: MRES=0=256微步配合内部运动控制器; TBL=%11 为源工程实测调优值——加长比较器
-         *       死区抑制大电流加速段方向相关 S2GA 短路误触发。其余斩波参数由 PWMCONF 决定。
-         * 历史: 2026-09-09 曾写 0xC00181C5(bit31 diss2vs+bit30 diss2g 关短路检测)做
-         *       误触发对照, 2026-09-10 撤钩子恢复生产值 → S2G/S2VS 检测重新生效 */
+        /* CHOPCONF: TOFF=5, TBL=54clk, MRES=256微步 */
         TMC5160_WriteReg(chip, REG_CHOPCONF, 0x000181C5);
 
-        /* 驱动配置寄存器: DRVSTRENGTH=00(weak), 降低栅极驱动电流
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch03.p017.md:
-         *   表3.3 MOSFET Miller Charge VS DRVSTRENGTH
-         * 推导: AOD4126 Qgd=10nC(typ) ∈ 10~20nC → DRVSTRENGTH=0(weak)
-         * 复位缺省 %10(medium) 栅极驱动过强 → 开关振铃/额外发热
-         * 只写寄存器无法读回, 其余按复位缺省: BBMTIME=0, BBMCLKS=4,
-         *   OTSELECT=0, FILT_ISENSE=0 */
+        /* 驱动配置: DRVSTRENGTH=weak(00)（AOD4126 Qgd=10nC） */
         TMC5160_WriteReg(chip, REG_DRV_CONF, 0x00000400);
 
-        /* SHORT_CONF: 短路检测灵敏度最低
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p035.md:
-         *   SHORT_CONF
-         * 目的: 大步偶发 S2GA/S2GB 短路误检测(关断放开电机)
-         * OTP 默认灵敏度在大电流+高 dv/dt 下误触发,降至最低消除
-         * 值: 0x7030F = shortdelay(bit18)=1 | SHORTFILTER=3
-         *   | S2G_LEVEL=15 | S2VS_LEVEL=15 */
+        /* SHORT_CONF: 短路检测灵敏度最低 */
         TMC5160_WriteReg(chip, REG_SHORT_CONF, 0x0007030F);
 
-        /* PWMCONF: StealthChop 斩波频率 = %01 → fPWM=2/683×15MHz≈43.9kHz
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch18_18_sine_wave_look.md: PWM 频率选择
-         * 推导: fCLK=15MHz(TIM4_CH3@PD14, TIM4CLK=240MHz/(PSC=0)/(ARR=15+1)), 复位 %00=29.3kHz 偏低,
-         *       %01=43.9kHz 落 36~48kHz 推荐区间(源工程 14MHz 时为 41kHz, 同档位)。其余位:
-         *       pwm_autoscale=1/pwm_autograd=1 自动调校, PWM_OFS=30, PWM_GRAD=12, PWM_LIM=12。 */
+        /* PWMCONF: 斩波频率 43.9kHz + PWM 自动调校 */
         TMC5160_WriteReg(chip, REG_PWMCONF, 0xC40D001E);
 
         /* 编码器配置 */
         TMC5160_ConfigEncoder(chip);
 
-        /* 电机电流: bit 域 IHOLD[3:0] | IRUN[11:8] | IHOLDDELAY[19:16]
-         * (2026-09-10 修: 参考代码/本工程旧注释"IHOLD=8,DELAY=6"为位域写反误读,
-         *  实际代码值一直是 DELAY=8/IRUN=20/IHOLD=6)
-         * IRUN 推导: 采用 F407 参考代码实测验证值 CS=20:
-         *   IRMS = (20+1)/32 × IFS/√2 = 21/32 × (0.325/0.05)/1.414 = 3.02A RMS
-         *   历史: CS=27(≈4A 额定) 双机满流经 OTPW(120°C) → 热致 S2 误触发;
-         *         CS=20 后 150 轮浸泡 0 次 (源工程 tmc5160_usr.c 2026-08-14 定案)
-         *   (2026-09-10 曾推 CS=13→2.01A 降热方案, 按用户裁决回退参考值 20;
-         *    若发热仍大再切 13: 14/32×6.5/1.414=2.01A, 铜损 3.4W vs 现 7.7W)
-         * IHOLD 推导: 3(0.576A) 实测锁不住轴(用户 2026-09-10) → 回调 6:
-         *   (6+1)/32 × 6.5/1.414 = 1.01A RMS, 保持力矩 ≈ 1.3×1.01/4 ≈ 0.33N·m,
-         *   静止铜损 = 2×1.01²×0.42 = 0.85W
-         * 依据 .cl/memory/config.md tmc5160_ifs=6.5A / tmc5160_vfs=0.325V +
-         *      电机规格书 R=0.42Ω 额定4A 保持力矩1.3N·m +
-         *      ..\TMC5160_StepMotor tmc5160_usr.c:267 实测校准史 */
+        /* 电机电流: IHOLDDELAY=8 / IRUN=20(3.02A RMS) / IHOLD=6(1.01A) */
         TMC5160_WriteReg(chip, REG_IHOLD_IRUN, (8 << 16) | (20 << 8) | 6);
 
         /* 静止降流延迟: 2^18 tCLK 单位, 40 → 40×262144/15e6 ≈ 699ms
@@ -565,7 +529,7 @@ void TMC5160_Init(void)
 
         /* TPWMTHRS=0: en_pwm_mode=0(GCONF=0x00) 下本寄存器不参与斩波切换, 写 0 保
          * 源工程行为等价 (2026-09-10 撤静音对照后注释修正)
-         * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch05.p038.md:
+         * 依据 TMC5160A_Datasheet_Rev1.14.ch05.p038.md:
          *   0x10-0x1F 速度相关控制寄存器组 */
         TMC5160_WriteReg(chip, REG_TPWMTHRS, 0);
 
@@ -610,7 +574,7 @@ uint32_t TMC5160_ReadReg(TMC5160_CHIP_T *chip, uint8_t reg_addr)
  * @输入 chip: 芯片指针; profile_id: 运动参数组 ID(1~5)
  * @输出 无
  * @说明 按预配置运动参数组设置斜坡寄存器
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
  *   VSTART/A1/V1/AMAX/VMAX/DMAX/D1/VSTOP/TZEROWAIT
  */
 void TMC5160_ApplyProfile(TMC5160_CHIP_T *chip, uint8_t profile_id)
@@ -640,7 +604,7 @@ void TMC5160_ApplyProfile(TMC5160_CHIP_T *chip, uint8_t profile_id)
  * @输入 chip: 芯片指针; target: 目标绝对位置
  * @输出 无
  * @说明 绝对定位，RAMPMODE=0 位置模式
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
  *   RAMPMODE/XTARGET
  */
 void TMC5160_MoveTo(TMC5160_CHIP_T *chip, int32_t target)
@@ -666,7 +630,7 @@ void TMC5160_MoveBy(TMC5160_CHIP_T *chip, int32_t offset)
  * @输入 chip: 芯片指针; velocity: 目标速度(+正转, -反转)
  * @输出 无
  * @说明 速度模式持续旋转
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md:
  *   RAMPMODE 速度模式
  */
 void TMC5160_SetVelocity(TMC5160_CHIP_T *chip, int32_t velocity)
@@ -700,7 +664,7 @@ void TMC5160_Stop(TMC5160_CHIP_T *chip)
 /**
  * @输入 chip: 芯片指针
  * @输出 int32_t: 当前位置(XACTUAL)
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: XACTUAL
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: XACTUAL
  */
 int32_t TMC5160_GetPosition(TMC5160_CHIP_T *chip)
 {
@@ -710,7 +674,7 @@ int32_t TMC5160_GetPosition(TMC5160_CHIP_T *chip)
 /**
  * @输入 chip: 芯片指针
  * @输出 int32_t: VACTUAL 当前实际速度（有符号，负=反转）
- * @依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch05.p038.md:
+ * @依据 TMC5160A_Datasheet_Rev1.14.ch05.p038.md:
  *   R 0x22 20 VACTUAL（斜坡发生器实时速度）
  */
 int32_t TMC5160_GetVelocity(TMC5160_CHIP_T *chip)
@@ -721,7 +685,7 @@ int32_t TMC5160_GetVelocity(TMC5160_CHIP_T *chip)
 /**
  * @输入 chip: 芯片指针
  * @输出 uint32_t: RAMP_STAT 寄存器值
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
  */
 uint32_t TMC5160_GetRampStat(TMC5160_CHIP_T *chip)
 {
@@ -731,7 +695,7 @@ uint32_t TMC5160_GetRampStat(TMC5160_CHIP_T *chip)
 /**
  * @输入 chip: 芯片指针
  * @输出 uint32_t: DRVSTATUS 寄存器值
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md
  */
 uint32_t TMC5160_GetDrvStatus(TMC5160_CHIP_T *chip)
 {
@@ -741,7 +705,7 @@ uint32_t TMC5160_GetDrvStatus(TMC5160_CHIP_T *chip)
 /**
  * @输入 chip: 芯片指针
  * @输出 uint32_t: GSTAT 寄存器值（reset/drv_err/uv_cp）
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT
  */
 uint32_t TMC5160_GetGStat(TMC5160_CHIP_T *chip)
 {
@@ -754,9 +718,9 @@ uint32_t TMC5160_GetGStat(TMC5160_CHIP_T *chip)
  * @输入 chip: 芯片指针
  * @输出 uint8_t 状态标志位
  *   bit0=到位, bit1=失步, bit2=过温, bit3=驱动错误, bit4=SPI通讯异常
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p045.md: ENC_STATUS
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT/DRVSTATUS
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p045.md: ENC_STATUS
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT/DRVSTATUS
  */
 uint8_t TMC5160_GetStatusFlags(TMC5160_CHIP_T *chip)
 {
@@ -808,7 +772,7 @@ uint8_t TMC5160_GetStatusFlags(TMC5160_CHIP_T *chip)
  * @输入 chip: 芯片指针
  * @输出 uint8_t: 运动阶段标志
  *   bit0=加速, bit1=匀速, bit2=减速, bit3=归零等待, bit4=静止锁轴
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch12_12_ramp_generator.md: RAMP_STAT
  */
 uint8_t TMC5160_GetMotionPhase(TMC5160_CHIP_T *chip)
 {
@@ -847,7 +811,7 @@ uint8_t TMC5160_GetMotionPhase(TMC5160_CHIP_T *chip)
  * @输入 chip: 芯片指针
  * @输出 无
  * @说明 配置编码器接口
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch20_20_abn_incremental_encoder.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch20_20_abn_incremental_encoder.md:
  *   ENCMODE/ENC_CONST/ENC_DEVIATION
  */
 void TMC5160_ConfigEncoder(TMC5160_CHIP_T *chip)
@@ -1016,13 +980,13 @@ TMC5160_MOVE_RESULT_T TMC5160_MoveToWithVerify(TMC5160_CHIP_T *chip, int32_t tar
  * 依据 .cl/memory/config.md home_amax=20000 */
 #define TMC5160_HOME_AMAX          20000UL
 
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p044.md:
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p044.md:
  *   RAMP_STAT event_stop_sg=bit6(R+WC，写 1 清) */
 #define TMC5160_RAMP_EVENT_STOP_SG (1UL << 6)
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p043.md:
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p043.md:
  *   SW_MODE sg_stop=bit10 */
 #define TMC5160_SW_MODE_SG_STOP    (1UL << 10)
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
  *   DRVSTATUS SG_RESULT=bits[9:0]（0=最大负载/堵转） */
 #define TMC5160_SG_RESULT_MASK     0x3FFUL
 

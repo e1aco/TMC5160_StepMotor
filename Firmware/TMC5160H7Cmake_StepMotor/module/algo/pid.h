@@ -23,10 +23,10 @@ typedef struct {
 } PID_T;
 
 /* ==== 接口 ==== */
-void    USR_PID_Init(PID_T *pid, int32_t kp, int32_t ki, int32_t kd,
+void    PID_Init(PID_T *pid, int32_t kp, int32_t ki, int32_t kd,
                      int32_t out_min, int32_t out_max);
-void    USR_PID_Reset(PID_T *pid);
-int32_t USR_PID_Calculate(PID_T *pid, int32_t setpoint, int32_t actual);
-void    USR_PID_SetParams(PID_T *pid, int32_t kp, int32_t ki, int32_t kd);
+void    PID_Reset(PID_T *pid);
+int32_t PID_Calculate(PID_T *pid, int32_t setpoint, int32_t actual);
+void    PID_SetParams(PID_T *pid, int32_t kp, int32_t ki, int32_t kd);
 
 #endif /* PID_H */

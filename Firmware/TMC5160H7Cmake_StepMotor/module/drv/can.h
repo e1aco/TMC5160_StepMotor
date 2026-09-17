@@ -10,8 +10,8 @@
  *        app/closed_loop）为反向依赖，用户 2026-09-09 显式裁决豁免登记，
  *        /cl check 分层扫描按本注豁免
  ****************************************************************************/
-#ifndef MDRV_CAN_H
-#define MDRV_CAN_H
+#ifndef CAN_H
+#define CAN_H
 
 #include "main.h"
 #include "fdcan.h"
@@ -67,16 +67,15 @@ typedef struct {
     uint8_t  checksum;
 } CAN_CMD_T;
 
-/* ==== 接口: 硬件原语 (DRV_) ==== */
-void    DRV_CAN_Init(void);
-uint8_t DRV_CAN_Send(uint32_t id, uint8_t *data);
-uint8_t DRV_CAN_SendWait(uint32_t id, uint8_t *data);
+/* ==== 接口: 驱动原语 ==== */
+void    CAN_Init(void);
+uint8_t CAN_Send(uint32_t id, uint8_t *data);
+uint8_t CAN_SendWait(uint32_t id, uint8_t *data);
 
-/* ==== 接口: 协议解析/反馈组装 (USR_，原 can_usr.h，符号保留) ==== */
-void    USR_CAN_Init(void);
-void    USR_CAN_Process(void);
-uint8_t USR_CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
+/* ==== 接口: 协议分发与反馈组装 ==== */
+void    CAN_Process(void);
+uint8_t CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
                                    uint8_t status, uint8_t stage);
-uint8_t USR_CAN_SendPidFeedback(uint8_t motor, uint8_t pid_type, int32_t value);
+uint8_t CAN_SendPidFeedback(uint8_t motor, uint8_t pid_type, int32_t value);
 
-#endif /* MDRV_CAN_H */
+#endif /* CAN_H */

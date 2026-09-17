@@ -4,7 +4,7 @@
  * @日期: 2026-09-08
  * @版本: v1.0
  * @说明: 时序探针实现 (DWT CYCCNT, H7 Cortex-M7)
- * @依据: details/probe.md DWT 序列，HCLK=240MHz
+ * @依据: details/probe.md DWT 序列，CPU=480MHz(D1CPRE=1)
  * @依赖: HAL, DWT
  ****************************************************************************/
 #include "tim_test.h"
@@ -42,8 +42,10 @@ void TEST_TIM_Stop(uint8_t tag)
     }
     end = DWT->CYCCNT;
     diff = end - s_start_cy[tag];
-    /* HCLK=240MHz → us = cycles / 240 */
-    us = diff / 240U;
+    /* DWT CYCCNT 计数钟 = CPU 时钟 = SYSCLK = 480MHz(D1CPRE=DIV1; HCLK=240MHz 是总线钟)
+     * 依据 .cl/memory/config.md stm32_sysclk=480MHz + OpenOCD 实测 962.5Mcyc/2s≈481MHz
+     * → us = cycles / 480 */
+    us = diff / 480U;
     /* 回传 [TM] tag us cycles */
     printf("[TM] %u %u us %u\r\n", (unsigned)tag, (unsigned)us, (unsigned)diff);
 }

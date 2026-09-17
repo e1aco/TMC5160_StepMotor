@@ -59,7 +59,7 @@ void COMM_Test_SPI(void)
 {
     /* 双芯自检: U1(PA11 CS, PA10 ENN)+U2(PD3 CS, PA15 ENN)
      * 历史: 2026-09-09 前 U1 未焊接仅测 U2；2026-09-14 U1 已焊+供电正常，
-     *   扩为双芯（init 双芯同配见 USR_TMC5160_Init） */
+     *   扩为双芯（init 双芯同配见 TMC5160_Init） */
     uint8_t chips[2] = { TMC5160_CHIP_1, TMC5160_CHIP_2 };
     uint8_t i;
     uint8_t all_ok = 1;
@@ -77,14 +77,14 @@ void COMM_Test_SPI(void)
         uint8_t chip_ok = 1;
         uint8_t tx[5], rx[5];
 
-        gstat = DRV_TMC5160_ReadReg(chip, REG_GSTAT);
-        drv   = DRV_TMC5160_ReadReg(chip, REG_DRVSTATUS);
-        chop  = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+        gstat = TMC5160_SpiRead(chip, REG_GSTAT);
+        drv   = TMC5160_SpiRead(chip, REG_DRVSTATUS);
+        chop  = TMC5160_SpiRead(chip, REG_CHOPCONF);
 
         /* 原始字节探针: 读 GSTAT 的第二报原始 rx 字节 (经 DebugTransfer) */
         tx[0] = REG_GSTAT & 0x7F;
         tx[1] = 0; tx[2] = 0; tx[3] = 0; tx[4] = 0;
-        (void)DRV_TMC5160_DebugTransfer(chip, tx, rx, 5);
+        (void)TMC5160_DebugTransfer(chip, tx, rx, 5);
         UART_DBG_Printf("[SPI RAW] U%u tx=%02X %02X %02X %02X %02X "
                         "rx=%02X %02X %02X %02X %02X\r\n",
                         (unsigned)chip,
@@ -105,8 +105,8 @@ void COMM_Test_SPI(void)
 
         /* 写-读回显: GCONF 写 0x04 再读回, 再写回 0x00 (不干扰 SpreadCycle) */
         gconf_wr = 0x00000004UL;
-        (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, gconf_wr);
-        gconf_rd = DRV_TMC5160_ReadReg(chip, REG_GCONF);
+        (void)TMC5160_SpiWrite(chip, REG_GCONF, gconf_wr);
+        gconf_rd = TMC5160_SpiRead(chip, REG_GCONF);
         if (gconf_rd != gconf_wr)
         {
             chip_ok = 0;
@@ -119,7 +119,7 @@ void COMM_Test_SPI(void)
             UART_DBG_Printf("[SPI WR OK] U%u GCONF=0x%08X\r\n",
                             (unsigned)chip, (unsigned)gconf_rd);
         }
-        (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, 0x00000000UL);
+        (void)TMC5160_SpiWrite(chip, REG_GCONF, 0x00000000UL);
 
         if (0 == chip_ok)
         {
@@ -233,11 +233,11 @@ static uint8_t S_SoakCheck(uint8_t chip, uint32_t wr)
 {
     uint32_t rd;
 
-    if (TMC5160_OK != DRV_TMC5160_WriteReg(chip, REG_XTARGET, wr))
+    if (TMC5160_OK != TMC5160_SpiWrite(chip, REG_XTARGET, wr))
     {
         return 1;
     }
-    rd = DRV_TMC5160_ReadReg(chip, REG_XTARGET);
+    rd = TMC5160_SpiRead(chip, REG_XTARGET);
     if (rd == wr)
     {
         return 0;
@@ -260,7 +260,7 @@ static uint8_t S_SoakCheck(uint8_t chip, uint32_t wr)
  * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md
  *   Figure 11.1; 档位表 .cl/datasheet/pages/...ch03.p017.md 表3.3
  * s2gb 锁桥后需 ENN 翻转重启(ch11: disable and re-enable the driver)
- * DRV_CONF/IHOLD_IRUN 只写不读回
+ * 驱动配置寄存器/IHOLD_IRUN 只写不读回
  * 依据 .cl/datasheet/pages/...ch05.p038.md */
 #define SOAK3_RUN_MS    1000U
 
@@ -286,31 +286,31 @@ static void S_Soak3Cell(uint8_t chip, uint8_t drvs, uint8_t cs)
     int32_t e0;
 
     /* BBMCLKS[11:7]=8 与 init 写入(0x400)一致, [2:0]=drvs */
-    (void)DRV_TMC5160_WriteReg(chip, REG_DRV_CONF, (8UL << 7) | (uint32_t)drvs);
-    (void)DRV_TMC5160_WriteReg(chip, REG_IHOLD_IRUN,
+    (void)TMC5160_SpiWrite(chip, REG_DRV_CONF, (8UL << 7) | (uint32_t)drvs);
+    (void)TMC5160_SpiWrite(chip, REG_IHOLD_IRUN,
                                (8UL << 16) | ((uint32_t)cs << 8) | 6UL);
-    DRV_TMC5160_Disable(chip);
-    DRV_TMC5160_DelayMs(5);
-    DRV_TMC5160_Enable(chip);
-    DRV_TMC5160_DelayMs(5);
-    USR_TMC5160_ApplyProfile(c, 4);
-    p0 = USR_TMC5160_GetPosition(c);
-    e0 = USR_TMC5160_GetEncoderPosition(c);
-    USR_TMC5160_SetVelocity(c, SOAK_VEL);
+    TMC5160_Disable(chip);
+    TMC5160_DelayMs(5);
+    TMC5160_Enable(chip);
+    TMC5160_DelayMs(5);
+    TMC5160_ApplyProfile(c, 4);
+    p0 = TMC5160_GetPosition(c);
+    e0 = TMC5160_GetEncoderPosition(c);
+    TMC5160_SetVelocity(c, SOAK_VEL);
     ferr = 0;
     t0 = HAL_GetTick();
     while ((HAL_GetTick() - t0) < SOAK3_RUN_MS)
     {
         ferr += S_SoakCheck(chip, 0x5A5A5A5AUL);
     }
-    ds = USR_TMC5160_GetDrvStatus(c);
-    gs = USR_TMC5160_GetGStat(c);
-    p1 = USR_TMC5160_GetPosition(c);
-    USR_TMC5160_Stop(c);
-    USR_TMC5160_MoveTo(c, p1);
+    ds = TMC5160_GetDrvStatus(c);
+    gs = TMC5160_GetGStat(c);
+    p1 = TMC5160_GetPosition(c);
+    TMC5160_Stop(c);
+    TMC5160_MoveTo(c, p1);
     UART_DBG_Printf("[SOAK3] drvs=%u cs=%u act=%ld enc=%ld ferr=%lu\r\n",
                     (unsigned)drvs, (unsigned)cs, (long)(p1 - p0),
-                    (long)(USR_TMC5160_GetEncoderPosition(c) - e0),
+                    (long)(TMC5160_GetEncoderPosition(c) - e0),
                     (unsigned long)ferr);
     UART_DBG_Printf("[SOAK3 ds] %08lX gs=%02lX%s\r\n",
                     (unsigned long)ds, (unsigned long)gs,
@@ -340,7 +340,7 @@ void COMM_Test_SPI_Soak(void)
     /* -- r6 活性门: CHOPCONF 应回读 init 写入的 0x000181C5(非零签名);
      *    全 0/全 F = 芯片无响应(V5V/VM 缺电、PD14 时钟丢失或 SPI 总线故障),
      *    先判活性再做协议测试——r5 教训: GCONF=0 与死芯片回读 0 无法区分 -- */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (0x000181C5UL != ctl)
     {
         UART_DBG_Printf("[SOAK DEAD] chop=%08lX exp=000181C5 check V5V/VM/PD14\r\n",
@@ -350,9 +350,9 @@ void COMM_Test_SPI_Soak(void)
     UART_DBG_Printf("[SOAK ALIVE] chop=%08lX\r\n", (unsigned long)ctl);
 
     /* -- 对照组: GCONF 读→写 0x04→读校验(非零图样)→写回原值, 双向写通路 -- */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_GCONF);
-    (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, 0x04UL);
-    if (DRV_TMC5160_ReadReg(chip, REG_GCONF) == 0x04UL)
+    ctl = TMC5160_SpiRead(chip, REG_GCONF);
+    (void)TMC5160_SpiWrite(chip, REG_GCONF, 0x04UL);
+    if (TMC5160_SpiRead(chip, REG_GCONF) == 0x04UL)
     {
         UART_DBG_Printf("[SOAK CTL OK] gconf0=00000004 g=%08lX\r\n",
                         (unsigned long)ctl);
@@ -362,12 +362,12 @@ void COMM_Test_SPI_Soak(void)
         UART_DBG_Printf("[SOAK CTL FAIL] gconf0=00000004 g=%08lX\r\n",
                         (unsigned long)ctl);
     }
-    (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, ctl);
+    (void)TMC5160_SpiWrite(chip, REG_GCONF, ctl);
 
     /* -- 锁轴: VMAX=0+位置模式钉当前位, 使 SOAK1 图样写入无效化 -- */
-    pos = USR_TMC5160_GetPosition(&g_tmc5160_chip2_st);
-    USR_TMC5160_Stop(&g_tmc5160_chip2_st);
-    USR_TMC5160_MoveTo(&g_tmc5160_chip2_st, pos);
+    pos = TMC5160_GetPosition(&g_tmc5160_chip2_st);
+    TMC5160_Stop(&g_tmc5160_chip2_st);
+    TMC5160_MoveTo(&g_tmc5160_chip2_st, pos);
 
     /* -- SOAK1 静置: 250 轮 × 8 图样 = 2000 写读回显, 预计 ~150ms -- */
     err = 0;
@@ -395,15 +395,15 @@ void COMM_Test_SPI_Soak(void)
         }
     }
 
-    (void)DRV_TMC5160_WriteReg(chip, REG_DRV_CONF, 0x00000400UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_IHOLD_IRUN,
+    (void)TMC5160_SpiWrite(chip, REG_DRV_CONF, 0x00000400UL);
+    (void)TMC5160_SpiWrite(chip, REG_IHOLD_IRUN,
                                (8UL << 16) | (20UL << 8) | 6UL);
-    DRV_TMC5160_Disable(chip);
-    DRV_TMC5160_DelayMs(5);
-    DRV_TMC5160_Enable(chip);
-    pos = USR_TMC5160_GetPosition(&g_tmc5160_chip2_st);
-    USR_TMC5160_Stop(&g_tmc5160_chip2_st);
-    USR_TMC5160_MoveTo(&g_tmc5160_chip2_st, pos);
+    TMC5160_Disable(chip);
+    TMC5160_DelayMs(5);
+    TMC5160_Enable(chip);
+    pos = TMC5160_GetPosition(&g_tmc5160_chip2_st);
+    TMC5160_Stop(&g_tmc5160_chip2_st);
+    TMC5160_MoveTo(&g_tmc5160_chip2_st, pos);
     UART_DBG_Str("[SOAK] done, hold at pos\r\n");
 }
 
@@ -423,7 +423,7 @@ void COMM_Test_SPI_Soak(void)
  * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md:
  *   GCONF.en_pwm_mode=bit2 → 0x04 开启 StealthChop 电压 PWM 模式
  * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
- *   DRV_STATUS.s2gb=bit28, GSTAT.drv_err=bit1(ch06.p033)
+ *   DRVSTATUS.s2gb=bit28, GSTAT.drv_err=bit1(ch06.p033)
  * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md:
  *   s2g 锁桥后需 ENN 翻转或 TOFF=0 重启 (ch11 disable/enable driver) */
 #define SOAK_Q_VEL       20000U
@@ -456,7 +456,7 @@ void COMM_Test_SPI_Quiet(void)
     UART_DBG_Str("[SOAK_Q] quiet GCONF=0x04 vel=20000 run=1000ms S2-on\r\n");
 
     /* 活性门: CHOPCONF 回读非零签名, 全 0/全 F = 芯片无响应 (r5/r6 教训) */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (0x000181C5UL != ctl)
     {
         UART_DBG_Printf("[SOAK_Q DEAD] chop=%08lX exp=000181C5 check V5V/VM/PD14\r\n",
@@ -465,32 +465,32 @@ void COMM_Test_SPI_Quiet(void)
     }
 
     /* 切入静音模式: GCONF.en_pwm_mode=1 → 0x04 */
-    (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, 0x04UL);
+    (void)TMC5160_SpiWrite(chip, REG_GCONF, 0x04UL);
 
     /* ENN re-arm: 清上电/上次残留锁桥标志 (ch11 disable/enable driver) */
-    DRV_TMC5160_Disable(chip);
-    DRV_TMC5160_DelayMs(5);
-    DRV_TMC5160_Enable(chip);
-    DRV_TMC5160_DelayMs(5);
+    TMC5160_Disable(chip);
+    TMC5160_DelayMs(5);
+    TMC5160_Enable(chip);
+    TMC5160_DelayMs(5);
 
-    USR_TMC5160_ApplyProfile(c, 4);
-    p0 = USR_TMC5160_GetPosition(c);
-    e0 = USR_TMC5160_GetEncoderPosition(c);
-    USR_TMC5160_SetVelocity(c, (int32_t)SOAK_Q_VEL);
+    TMC5160_ApplyProfile(c, 4);
+    p0 = TMC5160_GetPosition(c);
+    e0 = TMC5160_GetEncoderPosition(c);
+    TMC5160_SetVelocity(c, (int32_t)SOAK_Q_VEL);
     ferr = 0;
     t0 = HAL_GetTick();
     while ((HAL_GetTick() - t0) < SOAK_Q_RUN_MS)
     {
         ferr += S_SoakCheck(chip, 0x5A5A5A5AUL);
     }
-    ds = USR_TMC5160_GetDrvStatus(c);
-    gs = USR_TMC5160_GetGStat(c);
-    p1 = USR_TMC5160_GetPosition(c);
-    USR_TMC5160_Stop(c);
-    USR_TMC5160_MoveTo(c, p1);
+    ds = TMC5160_GetDrvStatus(c);
+    gs = TMC5160_GetGStat(c);
+    p1 = TMC5160_GetPosition(c);
+    TMC5160_Stop(c);
+    TMC5160_MoveTo(c, p1);
 
     act_d = p1 - p0;
-    enc_d = USR_TMC5160_GetEncoderPosition(c) - e0;
+    enc_d = TMC5160_GetEncoderPosition(c) - e0;
 
     /* 判据(用户 2026-09-10 定): |enc|≥8940 且 s2gb(ds bit28)=0 且 drv_err(gs bit1)=0 */
     pass = ((enc_d >= SOAK_Q_ENC_TH) || (enc_d <= -SOAK_Q_ENC_TH)) &&
@@ -511,7 +511,7 @@ void COMM_Test_SPI_Quiet(void)
                     (unsigned long)((ds >> 16) & 0x1FUL));
 
     /* 恢复生产值: GCONF=0x00 (SpreadCycle)——用户定"先测完再定"不切生产 */
-    (void)DRV_TMC5160_WriteReg(chip, REG_GCONF, 0x00UL);
+    (void)TMC5160_SpiWrite(chip, REG_GCONF, 0x00UL);
     UART_DBG_Str("[SOAK_Q] done, GCONF restored 0x00 hold at pos\r\n");
 }
 
@@ -531,7 +531,7 @@ void COMM_Test_SPI_Quiet(void)
  *   HEND=1(bits10:7=0001) TBL=%10=36clk(bits16:15) CHM=0 SpreadCycle
  *   MRES=%0000=256微步(bits27:24) diss2g/diss2vs=0 短路保护开启
  * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
- *   DRV_STATUS.s2ga=bit27 s2gb=bit28 s2vsa=bit12 s2vsb=bit13 位表 */
+ *   DRVSTATUS.s2ga=bit27 s2gb=bit28 s2vsa=bit12 s2vsb=bit13 位表 */
 #define MNL_CHOPCONF    0x000100C5UL
 #define MNL_DRV_CONF    0x00000402UL  /* 复位缺省: BBMCLKS=4[10:8]
                                        * +DRVSTRENGTH=%10(medium),
@@ -542,7 +542,7 @@ void COMM_Test_SPI_Quiet(void)
 #define MNL_ENC_TH      25600L        /* 51200×50%, 推导: 要求=编码器位移≥理论一半 → 51200/2 */
 
 /**
- * @说明 手册基线运转: 活性门→重写 CHOPCONF/DRV_CONF/TPOWERDOWN/斜坡组
+ * @说明 手册基线运转: 活性门→重写 CHOPCONF/驱动配置/TPOWERDOWN/斜坡组
  *       (ch23 序列)→RAMPMODE=0 定位 +51200→轮询 XACTUAL 到位→采 ds/gs 判据
  *       →保持锁轴(不回滚配置, 供万用表/示波器在手册基线下复测)
  * @判据 [MNLRUN PASS/FAIL] 一行; 到位轮询超时 15s 仍打印 FAIL 供定位
@@ -570,7 +570,7 @@ void COMM_Test_ManualRun(void)
     UART_DBG_Str("[MNLRUN] manual ch22/ch23 baseline target=+51200\r\n");
 
     /* 活性门: CHOPCONF 回读 init 写入的 0x000181C5 非零签名 (r5/r6 教训) */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (0x000181C5UL != ctl)
     {
         UART_DBG_Printf("[MNLRUN DEAD] chop=%08lX exp=000181C5 check V5V/VM/PD14\r\n",
@@ -579,33 +579,33 @@ void COMM_Test_ManualRun(void)
     }
 
     /* 手册基线重写 (ch23 序列: CHOPCONF→电流组→斜坡组→运动) */
-    (void)DRV_TMC5160_WriteReg(chip, REG_CHOPCONF, MNL_CHOPCONF);
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    (void)TMC5160_SpiWrite(chip, REG_CHOPCONF, MNL_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (MNL_CHOPCONF != ctl)
     {
         UART_DBG_Printf("[MNLRUN FAIL] chop wr=%08lX rd=%08lX\r\n",
                         (unsigned long)MNL_CHOPCONF, (unsigned long)ctl);
         return;
     }
-    (void)DRV_TMC5160_WriteReg(chip, REG_DRV_CONF, MNL_DRV_CONF);
-    (void)DRV_TMC5160_WriteReg(chip, REG_TPOWERDOWN, MNL_TPOWERDOWN);
+    (void)TMC5160_SpiWrite(chip, REG_DRV_CONF, MNL_DRV_CONF);
+    (void)TMC5160_SpiWrite(chip, REG_TPOWERDOWN, MNL_TPOWERDOWN);
     /* ch23 斜坡组逐项: A1/V1/AMAX/VMAX/DMAX/D1/VSTOP; VSTART/TZEROWAIT 手册
      * 未写=复位默认 0, 不重写 */
-    (void)DRV_TMC5160_WriteReg(chip, REG_A1, 1000UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_V1, 50000UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_AMAX, 500UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_VMAX, 200000UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_DMAX, 700UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_D1, 1400UL);
-    (void)DRV_TMC5160_WriteReg(chip, REG_VSTOP, 10UL);
+    (void)TMC5160_SpiWrite(chip, REG_A1, 1000UL);
+    (void)TMC5160_SpiWrite(chip, REG_V1, 50000UL);
+    (void)TMC5160_SpiWrite(chip, REG_AMAX, 500UL);
+    (void)TMC5160_SpiWrite(chip, REG_VMAX, 200000UL);
+    (void)TMC5160_SpiWrite(chip, REG_DMAX, 700UL);
+    (void)TMC5160_SpiWrite(chip, REG_D1, 1400UL);
+    (void)TMC5160_SpiWrite(chip, REG_VSTOP, 10UL);
 
     /* 定位一整圈: 用相对目标 p0+51200——上电 XACTUAL 被编码器同步到当前轴位
      * (ENC 跟随), 绝对目标可能与起始位重合导致 0 位移(2026-09-10 12MHz 轮
      * 实测 act=0 教训: XACTUAL 起始恰=51200 目标, MoveTo(51200) 等于没动) */
-    p0 = USR_TMC5160_GetPosition(c);
-    e0 = USR_TMC5160_GetEncoderPosition(c);
+    p0 = TMC5160_GetPosition(c);
+    e0 = TMC5160_GetEncoderPosition(c);
     xtar = p0 + (int32_t)MNL_TARGET;
-    USR_TMC5160_MoveTo(c, xtar);
+    TMC5160_MoveTo(c, xtar);
 
     /* 到位轮询: XACTUAL 连续 2 次 == XTARGET 判停; 超时 15s
      * 推导: AMAX=500 → a=500×fCLK²/2^41=500×2.25e14/2.199e12≈51160 µsteps/s²;
@@ -616,8 +616,8 @@ void COMM_Test_ManualRun(void)
     t0 = HAL_GetTick();
     while ((HAL_GetTick() - t0) < MNL_TIMEOUT_MS)
     {
-        DRV_TMC5160_DelayMs(100);
-        if (xtar == USR_TMC5160_GetPosition(c))
+        TMC5160_DelayMs(100);
+        if (xtar == TMC5160_GetPosition(c))
         {
             stable++;
             if (stable >= 2U)
@@ -632,11 +632,11 @@ void COMM_Test_ManualRun(void)
         }
     }
 
-    ds = USR_TMC5160_GetDrvStatus(c);
-    gs = USR_TMC5160_GetGStat(c);
-    p1 = USR_TMC5160_GetPosition(c);
+    ds = TMC5160_GetDrvStatus(c);
+    gs = TMC5160_GetGStat(c);
+    p1 = TMC5160_GetPosition(c);
     act_d = p1 - p0;
-    enc_d = USR_TMC5160_GetEncoderPosition(c) - e0;
+    enc_d = TMC5160_GetEncoderPosition(c) - e0;
 
     /* 判据(用户 2026-09-10 定): |enc|≥25600 且 s2g/s2vs 四位全 0 且 drv_err=0
      * 位表: s2vsa=bit12 s2vsb=bit13 s2ga=bit27 s2gb=bit28 (ch06.p056);
@@ -665,8 +665,8 @@ void COMM_Test_ManualRun(void)
 /* ==== 生产配置 SpreadCycle 整圈运行验证 (2026-09-12 用户定案) ====
  * 目的: 生产 init 配置(GCONF=0x00 SpreadCycle 非静音,
  *   CHOPCONF=0x000181C5, IRUN=20)下定位一整圈, 验证运转全程无错误标志
- * 与 COMM_Test_ManualRun 的区别: 不重写 CHOPCONF/DRV_CONF/斜坡调优值,
- *   只调 USR_TMC5160_ApplyProfile(c, 4)(CAN 参数组 4, 生产常规操作;
+ * 与 COMM_Test_ManualRun 的区别: 不重写 CHOPCONF/驱动配置/斜坡调优值,
+ *   只调 TMC5160_ApplyProfile(c, 4)(CAN 参数组 4, 生产常规操作;
  *   init 不配斜坡, AMAX 复位默认 0 时电机不动, 见 SOAK r2 教训)
  * 判据(用户 2026-09-12 定): PASS = 到位(reached=1) 且 |enc|≥25600 且
  *   s2ga/s2gb/s2vsa/s2vsb/ola/olb 全 0 且 GSTAT.drv_err=0
@@ -705,7 +705,7 @@ void COMM_Test_ProdRun(void)
     UART_DBG_Str("[PRODRUN] prod SpreadCycle target=+51200\r\n");
 
     /* 活性门: CHOPCONF 回读生产 init 写入的 0x000181C5 非零签名 */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (0x000181C5UL != ctl)
     {
         UART_DBG_Printf("[PRODRUN DEAD] chop=%08lX exp=000181C5\r\n",
@@ -715,7 +715,7 @@ void COMM_Test_ProdRun(void)
 
     /* 非静音确认: GCONF 必须=0x00(en_pwm_mode=0 SpreadCycle),
      * 否则本次验证前提不成立 */
-    gconf = DRV_TMC5160_ReadReg(chip, REG_GCONF);
+    gconf = TMC5160_SpiRead(chip, REG_GCONF);
     if (0x00000000UL != gconf)
     {
         UART_DBG_Printf("[PRODRUN NOT-SPREAD] gconf=%08lX exp=0\r\n",
@@ -727,13 +727,13 @@ void COMM_Test_ProdRun(void)
      * 推导: a=AMAX×fCLK²/2^41=20000×2.25e14/2.199e12;
      *   d=51200 → 三角剖面 v_peak=√(20000×51200)≈32000, t≈3.2s,
      *   超时 20s(×6 裕量) */
-    USR_TMC5160_ApplyProfile(c, 4);
+    TMC5160_ApplyProfile(c, 4);
 
     /* 相对目标 p0+51200(XACTUAL 上电被编码器同步, 绝对目标或撞起始位) */
-    p0 = USR_TMC5160_GetPosition(c);
-    e0 = USR_TMC5160_GetEncoderPosition(c);
+    p0 = TMC5160_GetPosition(c);
+    e0 = TMC5160_GetEncoderPosition(c);
     xtar = p0 + (int32_t)PRD_TARGET;
-    USR_TMC5160_MoveTo(c, xtar);
+    TMC5160_MoveTo(c, xtar);
 
     /* 到位轮询: XACTUAL 连续 2 次 == XTARGET 判停; 超时 20s */
     reached = 0;
@@ -741,8 +741,8 @@ void COMM_Test_ProdRun(void)
     t0 = HAL_GetTick();
     while ((HAL_GetTick() - t0) < PRD_TIMEOUT_MS)
     {
-        DRV_TMC5160_DelayMs(100);
-        if (xtar == USR_TMC5160_GetPosition(c))
+        TMC5160_DelayMs(100);
+        if (xtar == TMC5160_GetPosition(c))
         {
             stable++;
             if (stable >= 2U)
@@ -757,11 +757,11 @@ void COMM_Test_ProdRun(void)
         }
     }
 
-    ds = USR_TMC5160_GetDrvStatus(c);
-    gs = USR_TMC5160_GetGStat(c);
-    p1 = USR_TMC5160_GetPosition(c);
+    ds = TMC5160_GetDrvStatus(c);
+    gs = TMC5160_GetGStat(c);
+    p1 = TMC5160_GetPosition(c);
     act_d = p1 - p0;
-    enc_d = USR_TMC5160_GetEncoderPosition(c) - e0;
+    enc_d = TMC5160_GetEncoderPosition(c) - e0;
 
     /* 判据: 到位且 |enc|≥25600 且 s2g/s2vs/ol 全 0 且 drv_err=0
      * 掩码 0x38003000 = s2vsa(bit12)+s2vsb(bit13)+s2ga(27)+s2gb(28)
@@ -789,7 +789,7 @@ void COMM_Test_ProdRun(void)
 }
 
 /* ==== U1 生产配置 SpreadCycle 整圈运行验证 (2026-09-14 新增) ====
- * 背景: U1 已焊+供电正常（你确认）；init 双芯同配（见 USR_TMC5160_Init），
+ * 背景: U1 已焊+供电正常（你确认）；init 双芯同配（见 TMC5160_Init），
  *   CAN 侧 U1 路径已存在（motor_ctrl/can.c），本钩子做 U1 首轮带载实证
  * 与 COMM_Test_ProdRun 的区别仅是芯片号 2→1（判据/参数组/超时全同）：
  *   活性门 CHOPCONF=0x000181C5（依据 .cl/memory/config.md + ch06.p048）
@@ -831,7 +831,7 @@ void COMM_Test_ProdRun_U1(void)
 
     /* 活性门: CHOPCONF 回读生产 init 写入的 0x000181C5 非零签名
      * 全 0/全 F=芯片无响应（见 memory tmc5160_spi_all_zero_reads） */
-    ctl = DRV_TMC5160_ReadReg(chip, REG_CHOPCONF);
+    ctl = TMC5160_SpiRead(chip, REG_CHOPCONF);
     if (0x000181C5UL != ctl)
     {
         UART_DBG_Printf("[PRODRUN_U1 DEAD] chop=%08lX exp=000181C5\r\n",
@@ -840,7 +840,7 @@ void COMM_Test_ProdRun_U1(void)
     }
 
     /* 非静音确认: GCONF 必须=0x00(en_pwm_mode=0 SpreadCycle) */
-    gconf = DRV_TMC5160_ReadReg(chip, REG_GCONF);
+    gconf = TMC5160_SpiRead(chip, REG_GCONF);
     if (0x00000000UL != gconf)
     {
         UART_DBG_Printf("[PRODRUN_U1 NOT-SPREAD] gconf=%08lX exp=0\r\n",
@@ -849,13 +849,13 @@ void COMM_Test_ProdRun_U1(void)
     }
 
     /* 生产常规运动参数(组 4)，超时 20s（推导见 ProdRun 同组注释） */
-    USR_TMC5160_ApplyProfile(c, 4);
+    TMC5160_ApplyProfile(c, 4);
 
     /* 相对目标 p0+51200(XACTUAL 上电被编码器同步，绝对目标或撞起始位） */
-    p0 = USR_TMC5160_GetPosition(c);
-    e0 = USR_TMC5160_GetEncoderPosition(c);
+    p0 = TMC5160_GetPosition(c);
+    e0 = TMC5160_GetEncoderPosition(c);
     xtar = p0 + (int32_t)PRD_TARGET;
-    USR_TMC5160_MoveTo(c, xtar);
+    TMC5160_MoveTo(c, xtar);
 
     /* 到位轮询: XACTUAL 连续 2 次 == XTARGET 判停; 超时 20s */
     reached = 0;
@@ -863,8 +863,8 @@ void COMM_Test_ProdRun_U1(void)
     t0 = HAL_GetTick();
     while ((HAL_GetTick() - t0) < PRD_TIMEOUT_MS)
     {
-        DRV_TMC5160_DelayMs(100);
-        if (xtar == USR_TMC5160_GetPosition(c))
+        TMC5160_DelayMs(100);
+        if (xtar == TMC5160_GetPosition(c))
         {
             stable++;
             if (stable >= 2U)
@@ -879,11 +879,11 @@ void COMM_Test_ProdRun_U1(void)
         }
     }
 
-    ds = USR_TMC5160_GetDrvStatus(c);
-    gs = USR_TMC5160_GetGStat(c);
-    p1 = USR_TMC5160_GetPosition(c);
+    ds = TMC5160_GetDrvStatus(c);
+    gs = TMC5160_GetGStat(c);
+    p1 = TMC5160_GetPosition(c);
     act_d = p1 - p0;
-    enc_d = USR_TMC5160_GetEncoderPosition(c) - e0;
+    enc_d = TMC5160_GetEncoderPosition(c) - e0;
 
     /* 判据: 到位且 |enc|≥25600 且 s2g/s2vs/ol 全 0 且 drv_err=0
      * 掩码 0x38003000 = s2vsa(bit12)+s2vsb(bit13)+s2ga(27)+s2gb(28)

@@ -36,7 +36,7 @@ static int32_t S_Clamp(int32_t value, int32_t min, int32_t max)
  * @输出 无
  * @说明 初始化 PID，积分/上次误差清零
  */
-void USR_PID_Init(PID_T *pid, int32_t kp, int32_t ki, int32_t kd,
+void PID_Init(PID_T *pid, int32_t kp, int32_t ki, int32_t kd,
                   int32_t out_min, int32_t out_max)
 {
     pid->kp = kp;
@@ -53,7 +53,7 @@ void USR_PID_Init(PID_T *pid, int32_t kp, int32_t ki, int32_t kd,
  * @输出 无
  * @说明 复位 PID 状态（积分清零，误差清零）
  */
-void USR_PID_Reset(PID_T *pid)
+void PID_Reset(PID_T *pid)
 {
     pid->integral = 0;
     pid->last_error = 0;
@@ -64,7 +64,7 @@ void USR_PID_Reset(PID_T *pid)
  * @输出 int32_t: PID 输出（修正量，已限幅）
  * @说明 位置式 PID：P=Kp*e, I=Ki*Σe, D=Kd*(e-e_prev)
  */
-int32_t USR_PID_Calculate(PID_T *pid, int32_t setpoint, int32_t actual)
+int32_t PID_Calculate(PID_T *pid, int32_t setpoint, int32_t actual)
 {
     int32_t error;
     int32_t p_out, i_out, d_out, output;
@@ -90,7 +90,7 @@ int32_t USR_PID_Calculate(PID_T *pid, int32_t setpoint, int32_t actual)
  * @输出 无
  * @说明 在线调整 PID 参数
  */
-void USR_PID_SetParams(PID_T *pid, int32_t kp, int32_t ki, int32_t kd)
+void PID_SetParams(PID_T *pid, int32_t kp, int32_t ki, int32_t kd)
 {
     pid->kp = kp;
     pid->ki = ki;

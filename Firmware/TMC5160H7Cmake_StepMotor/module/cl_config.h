@@ -50,7 +50,7 @@
  *       0=生产版关闭，不跑
  * 消费: Core/Src/main.c 上电测试段(#if SPI_MANUAL→COMM_Test_ManualRun())
  * 实现: test/comm_test.c COMM_Test_ManualRun()
- * 基线=CHOPCONF 0x000100C5(TBL=36clk/HEND=1) + DRV_CONF 复位缺省(medium)
+ * 基线=CHOPCONF 0x000100C5(TBL=36clk/HEND=1) + 驱动配置寄存器复位缺省(medium)
  * + 保留 SHORT_CONF/IHOLD_IRUN/GCONF 现值（约束3: memory 实测校准优先）
  * 现状=0：2026-09-10 实测 FAIL(reached=1 act=33321 enc=8717
  * ds=D1140067: s2gb=1 olb=1 gs=02) → 手册基线仍锁桥,

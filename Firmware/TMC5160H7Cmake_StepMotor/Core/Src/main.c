@@ -114,15 +114,14 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   /* TMC5160 外部时钟: TIM4_CH3 PWM 输出 15MHz (TIM4CLK=240MHz/(PSC=0)/(ARR=15+1))
-   * 必须在 USR_TMC5160_Init 前启动，否则芯片无 fCLK 不工作 */
+   * 必须在 TMC5160_Init 前启动，否则芯片无 fCLK 不工作 */
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
 
   QUEUE_Init(&g_queue_st);
-  DRV_CAN_Init();
-  USR_CAN_Init();
-  USR_TMC5160_Init();
-  USR_MOTOR_Init();
-  USR_CLOSEDLOOP_Init();
+  CAN_Init();
+  TMC5160_Init();
+  MOTOR_Init();
+  CLOSEDLOOP_Init();
   UART_DBG_Init();
   //RTT_DBG_Init(); // RTT初始化
   UART_DBG_Str("UART ready 115200\r\n");
@@ -179,12 +178,12 @@ int main(void)
         {
             s_saleae_last = HAL_GetTick();
             TEST_SPI_SaleaePulse();
-            (void)DRV_TMC5160_ReadReg(TMC5160_CHIP_2, 0x01); /* GSTAT */
+            (void)TMC5160_SpiRead(TMC5160_CHIP_2, 0x01); /* GSTAT */
         }
     }
 #endif
-    USR_CAN_Process();
-    USR_HOME_Tick();
+    CAN_Process();
+    HOME_Tick();
     COMM_Test_CAN_Heartbeat();
     /* 双通道心跳遥测：1Hz 打印双电机实际/编码器位置 (USART1 115200 + RTT) */
     {
@@ -194,29 +193,29 @@ int main(void)
       {
         s_rtt_last_tick = now;
         /* U2 追加运动诊断量: v=VACTUAL(0x22) rs=RAMP_STAT cs=CS_ACTUAL[9:0]
-         * ds=DRV_STATUS(OL/OT/S2 位) gs=GSTAT —— 遥测先行定位抖动 (retrieval.md) */
+         * ds=DRVSTATUS(OL/OT/S2 位) gs=GSTAT —— 遥测先行定位抖动 (retrieval.md) */
         {
-          TMC5160_CHIP_T *u2 = USR_MOTOR_GetChip(MOTOR_CTRL_U2);
-          uint32_t ds = USR_TMC5160_GetDrvStatus(u2);
+          TMC5160_CHIP_T *u2 = MOTOR_GetChip(MOTOR_CTRL_U2);
+          uint32_t ds = TMC5160_GetDrvStatus(u2);
           UART_DBG_Printf("[t=%u] U1 act=%d enc=%d | U2 act=%d enc=%d "
                           "v=%d rs=%lX cs=%lu ds=%08lX gs=%02X\r\n",
                           (unsigned)now,
-                          (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U1),
-                          (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
-                          (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U2),
-                          (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U2),
-                          (int)USR_TMC5160_GetVelocity(u2),
-                          (unsigned long)USR_TMC5160_GetRampStat(u2),
+                          (int)MOTOR_GetPosition(MOTOR_CTRL_U1),
+                          (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
+                          (int)MOTOR_GetPosition(MOTOR_CTRL_U2),
+                          (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U2),
+                          (int)TMC5160_GetVelocity(u2),
+                          (unsigned long)TMC5160_GetRampStat(u2),
                           (unsigned long)(ds & 0x3FFUL),
                           (unsigned long)ds,
-                          (unsigned int)USR_TMC5160_GetGStat(u2));
+                          (unsigned int)TMC5160_GetGStat(u2));
         }
         RTT_DBG_Printf("[t=%u] U1 act=%d enc=%d | U2 act=%d enc=%d\r\n",
                        (unsigned)now,
-                       (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U1),
-                       (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
-                       (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U2),
-                       (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U2));
+                       (int)MOTOR_GetPosition(MOTOR_CTRL_U1),
+                       (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
+                       (int)MOTOR_GetPosition(MOTOR_CTRL_U2),
+                       (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U2));
       }
     }
 
@@ -224,8 +223,8 @@ int main(void)
     // if (g_cl_tick_flag)
     // {
     //   g_cl_tick_flag = 0;
-    //   USR_CLOSEDLOOP_Tick(MOTOR_CTRL_U1);
-    //   USR_CLOSEDLOOP_Tick(MOTOR_CTRL_U2);
+    //   CLOSEDLOOP_Tick(MOTOR_CTRL_U1);
+    //   CLOSEDLOOP_Tick(MOTOR_CTRL_U2);
     // }
 
     /* USER CODE END WHILE */

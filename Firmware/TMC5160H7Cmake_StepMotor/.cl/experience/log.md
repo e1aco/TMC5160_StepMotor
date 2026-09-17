@@ -20,6 +20,20 @@
 - **提示词压缩**: `[STM32H750/SPI3+TMC5160] [寄存器级收发:TSIZE→CSTART→轮询TXP/RXP→等EOT] [片选GPIOx->BSRR] [DWT基准=CPU=480MHz] [判据[SPI OK]+[TM]写9.2/读23.6us]`
 - **违规自检**: ✅已读 run/codegen/watcher/preflight/probe/tim/build/flash/format-gate/risk/run-fault/end；✅全自动闭环；✅澄清+用户裁决后才生成；✅工具问题按 run-fault 处理；⚠️过程教训：时序门禁应"功能判据先过再测 [TM]"（初次先建宏版测量，经用户纠正）
 
+## [2026-09-11] 任务: 电机运行排查 B 相 s2gb — /cl end 验收通过（根因=RS-B Kelvin 跳线错位）
+- **模式**: /cl run（静音轮→手册基线轮→降频轮→回归轮，共 5 版固件）+ 硬件侧用户排查
+- **现象**: 承 09-10 未结案；新增：StealthChop 报 s2vsb+olb（ds=40146000）；手册基线轮电机首次位移 8717(17%)后锁（ds=D1140067）；12MHz 轮 enc=3072(6%)更差；用户实测链：HB2-BMB2=0、A 栅 4.5V/B 栅 22V、桥阻对称、换片换电容 MOS 完好、空载全导通、电源无跌落、线圈对调故障不离桥、B 下管也不导通
+- **尝试**:
+  - 静音轮(`COMM_Test_SPI_Quiet`, GCONF=0x04)：FAIL act=17801 enc=13 ds=40146000(s2gb=0,s2vsb+olb=1) → 斩波模式无关
+  - 手册基线轮(`COMM_Test_ManualRun`, CHOPCONF=0x000100C5+DRV_CONF 复位缺省)：FAIL act=33321 enc=8717 ds=D1140067 → 斩波/drvs 维度穷尽；附带修钩子 bug（绝对目标撞 XACTUAL 编码器同步起始位→改相对+51200，到位比较改绝对变量）
+  - 降频轮(15→12MHz, SPI/32)：FAIL enc=3072 更差 → "下管充电不足"假设否决 → 用户放弃，回退 15MHz/6.45M（[TM] 复验写20us/读54us 与 09-09 一致）
+  - ch11.p079 核对：短路响应=**分桥关断**(B 整桥 HS+LS 全停、A 继续) → "B 下管不导通"=同一跳闸之果；双检测器齐跳(s2gb+s2vsb)=回路整体过流 → 嫌疑重排首位=采样通路（修正上轮"全局关断"说法）
+  - 用户硬件侧穷尽：换片✗换电容✗MOS✗电源✗对调不离桥 → 最终查出**板铺铜破坏 RS-B Kelvin(SRBH/SRBL)走线 + 补救跳线错位**（修复确认）
+- **最终方案**: 硬件修正跳线；固件生产 init 本就正确无改动；测试钩子(`SPI_MANUAL`/`SPI_QUIET`)验收后删除归位生产版
+- **验证结果**: ✅ 15MHz 宏版 ManualRun **连续 2× `[MNLRUN PASS] reached=1 act=51200 enc=51200`（一整圈零丢步）`ds=81140061 gs=00`**；生产版(SPI_MANUAL=0)已烧，心跳 act=102400 enc=0 锁轴 gs=00 健康
+- **经验引用**: memory 新增 10 条（quiet_s2vsb/manual_partial/hb2_zero/gate_rail/fclk12_rejected/noload_cleared/follows_bridge/per_bridge_shutdown/kelvin_jumper_fixed/regression_pass）；违规自检：无（run 全自动/先澄清后生成/未降判据/工具问题按 run-fault 处理）
+- **提示词压缩**: `[TMC5160 s2gb 空载好带载锁] [先查采样通路RS/SRBH/SRBL再查驱动] [分桥关断A活B灭] [ManualRun相对整圈判据] [跳线修复+回归PASS]`
+
 ## [2026-09-12] 任务: 生产配置 SpreadCycle 整圈运行验证（无错误标志）— /cl end 验收通过
 - **模式**: /cl run（第 1 轮直 PASS，无迭代）
 - **现象**: 用户要求非静音模式 + 运转全程无错误标志；查生产 init 本就 GCONF=0x00 SpreadCycle（零生产代码改动，任务本质为物理验证）

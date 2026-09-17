@@ -473,7 +473,7 @@ void CAN_Process(void)
  * @说明 发送运动反馈帧 (ID: 0x1AA55F43)；byte[6] 保护状态:
  *        bit0=OTPW, bit1=OT, bit2=drv_err(GSTAT), bit3=S2GA, bit4=S2GB,
  *        bit5=S2VSA, bit6=S2VSB, bit7=失步(ENC_STATUS.deviation_warn)
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p033.md: DRVSTATUS/GSTAT 位定义
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p033.md: DRVSTATUS/GSTAT 位定义
  */
 uint8_t CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
                                    uint8_t status, uint8_t stage)

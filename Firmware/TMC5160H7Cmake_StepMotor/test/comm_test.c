@@ -7,10 +7,10 @@
  *  - SPI: 上电回读 GSTAT/DRVSTATUS/CHOPCONF + GCONF 写读回显；
  *    判据 = CHOPCONF 回读匹配 + 写回显一致（IHOLD_IRUN 为只写寄存器不可回读）
  *  - CAN: ISR 中 QUEUE_Insert 计数，Heartbeat 1Hz 回显到 USART1+RTT
- * @依据: .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md: SPI DATAGRAM
- *        .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch05.p038.md: IHOLD_IRUN 只写(W)
- *        .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT/DRVSTATUS
- *        .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md: CHOPCONF/IHOLD_IRUN
+ * @依据: TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md: SPI DATAGRAM
+ *        TMC5160A_Datasheet_Rev1.14.ch05.p038.md: IHOLD_IRUN 只写(W)
+ *        TMC5160A_Datasheet_Rev1.14.ch06.p033.md: GSTAT/DRVSTATUS
+ *        TMC5160A_Datasheet_Rev1.14.ch06.p032.md: CHOPCONF/IHOLD_IRUN
  *        require.md: CAN 500kbit/s, 帧 ID 0x1AA55F42→0x1AA55F43, 校验和 byte0..6
  *        .cl/memory/config.md: SPI 6.45Mbit/s (PLL3Q 103.2MHz/16), tCSH 10us, fCLK 15MHz
  * @依赖: drv/tmc5160(原 drv+usr 合并), drv/uart_dbg, drv/rtt_dbg
@@ -24,7 +24,7 @@
 #include <stdio.h>
 
 /* ==== 寄存器地址 (与 tmc5160_usr.c 一致, 编排层只读) ==== */
-/* 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md */
+/* 依据 TMC5160A_Datasheet_Rev1.14.ch06.p032.md */
 #define REG_GSTAT       0x01
 #define REG_GCONF       0x00
 #define REG_CHOPCONF    0x6C
@@ -65,7 +65,7 @@ void COMM_Test_SPI(void)
     uint8_t all_ok = 1;
     /* 依据 tmc5160_usr.c init 写入值: CHOPCONF=0x000181C5
      * 注: IHOLD_IRUN(0x10) 为只写寄存器, 回读恒 0, 不可作通讯判据
-     * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch05.p038.md: W 0x10 IHOLD_IRUN */
+     * 依据 TMC5160A_Datasheet_Rev1.14.ch05.p038.md: W 0x10 IHOLD_IRUN */
     const uint32_t exp_chop = 0x000181C5UL;
 
     UART_DBG_Printf("[SPI CFG] U1+U2 prescaler16 6.45M\r\n");
@@ -200,14 +200,14 @@ uint32_t COMM_Test_GetCanRxCount(void)
 /* 目的: 验证 H7 6.45Mbps 相对 F407 2.625Mbps 是否过快 → 写帧位翻转
  * 判据背景: ch04 §4.3 tCH/tCL > tCLK+10ns=76.7ns@15MHz, 6.45M 半周期 77.5ns
  *   裕量仅 1% (F407 2.625M 时 190.5ns ≈ 2.5x), 需实测证伪/证实
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md §4.3 */
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch04_4_spi_interface.md §4.3 */
 #define REG_XTARGET     0x2D
 /* r2 测试寄存器 = XTARGET (RW): RAMPMODE=1 时被忽略、RAMPMODE=0+VMAX=0 时
  * 速度上限 0 → 两阶段写图样均不改变电机行为
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p041.md: RW 0x2D XTARGET */
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p041.md: RW 0x2D XTARGET */
 /* r1 教训: ENC_CONST(0x3A) 实为只写(W), 回读恒 0——r1 全部 rd=00000000 是
  * 芯片系统行为非位翻转, 与 IHOLD_IRUN 同类
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p045.md: W 0x3A */
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p045.md: W 0x3A */
 #define SOAK_VEL        20000
 /* 速度模式测试档: 20000 µsteps/t, t=2^24/fCLK
  * 推导: 20000×15e6/16777216=17881 µsteps/s ÷ 51200 µsteps/rev
@@ -257,11 +257,11 @@ static uint8_t S_SoakCheck(uint8_t chip, uint32_t wr)
  *   压缩, AOD4126 Rds_on 规格条件 VGS=10V; 现 DRVSTRENGTH=0(最弱)+S2G 检测窗
  *   1500ns → 高边未完全开足的 Vds 被"压降检测器"误报为短路
  * S2G=高边电压降监测非电阻测量
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md
- *   Figure 11.1; 档位表 .cl/datasheet/pages/...ch03.p017.md 表3.3
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md
+ *   Figure 11.1; 档位表 ...ch03.p017.md 表3.3
  * s2gb 锁桥后需 ENN 翻转重启(ch11: disable and re-enable the driver)
  * 驱动配置寄存器/IHOLD_IRUN 只写不读回
- * 依据 .cl/datasheet/pages/...ch05.p038.md */
+ * 依据 ...ch05.p038.md */
 #define SOAK3_RUN_MS    1000U
 
 /* r7b: 用户 2026-09-10 要求试最强档——0(现产线值)与 7(最大) 之间取 0/5/7
@@ -420,11 +420,11 @@ void COMM_Test_SPI_Soak(void)
  * 依据 .cl/memory/config.md tmc5160_clk_freq=15MHz + motor_counts_per_rev=51200
  *   推导链: 速度值 VMAX → 每秒微步 = VMAX×fCLK/2^24 (ch06 XACTUAL 定义,
  *   SOAK r3 实测 17881/s 精确匹配钉死 fCLK=15.00MHz)
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p032.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p032.md:
  *   GCONF.en_pwm_mode=bit2 → 0x04 开启 StealthChop 电压 PWM 模式
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
  *   DRVSTATUS.s2gb=bit28, GSTAT.drv_err=bit1(ch06.p033)
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch11_11_diagnostics_and_protection.md:
  *   s2g 锁桥后需 ENN 翻转或 TOFF=0 重启 (ch11 disable/enable driver) */
 #define SOAK_Q_VEL       20000U
 #define SOAK_Q_RUN_MS    1000U
@@ -523,14 +523,14 @@ void COMM_Test_SPI_Quiet(void)
  *   s2ga/s2gb/s2vsa/s2vsb 全 0 且 GSTAT.drv_err=0
  * 电流不取手册通用示例 CS=31(4.48A RMS 超 4A 额定), 按 .cl/memory/config.md
  *   tmc5160_irun=20(实测校准 2026-09-01)——init 已写, 本函数不重写
- * 依据 .cl/datasheet/TMC5160A_Datasheet_Rev1.14_ch23_23_getting_started.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14_ch23_23_getting_started.md:
  *   CHOPCONF=0x000100C5 / TPOWERDOWN=10 / A1=1000 V1=50000 AMAX=500 VMAX=200000
  *   DMAX=700 D1=1400 VSTOP=10 / RAMPMODE=0 + XTARGET=一整圈(±51200)
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch01.p051.md / ch01.p052.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch01.p051.md / ch01.p052.md:
  *   CHOPCONF 位表解码 0x000100C5: TOFF=5(bits3:0=0101) HSTRT=4(bits6:4=100)
  *   HEND=1(bits10:7=0001) TBL=%10=36clk(bits16:15) CHM=0 SpreadCycle
  *   MRES=%0000=256微步(bits27:24) diss2g/diss2vs=0 短路保护开启
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
  *   DRVSTATUS.s2ga=bit27 s2gb=bit28 s2vsa=bit12 s2vsb=bit13 位表 */
 #define MNL_CHOPCONF    0x000100C5UL
 #define MNL_DRV_CONF    0x00000402UL  /* 复位缺省: BBMCLKS=4[10:8]
@@ -670,7 +670,7 @@ void COMM_Test_ManualRun(void)
  *   init 不配斜坡, AMAX 复位默认 0 时电机不动, 见 SOAK r2 教训)
  * 判据(用户 2026-09-12 定): PASS = 到位(reached=1) 且 |enc|≥25600 且
  *   s2ga/s2gb/s2vsa/s2vsb/ola/olb 全 0 且 GSTAT.drv_err=0
- * 位表依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
+ * 位表依据 TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
  *   s2vsa=bit12 s2vsb=bit13 s2ga=bit27 s2gb=bit28 ola=bit29 olb=bit30;
  *   GSTAT.drv_err=bit1 (ch06.p033) */
 #define PRD_TARGET      51200L        /* 一整圈 = 200 全步×256 微步 */
@@ -798,7 +798,7 @@ void COMM_Test_ProdRun(void)
  *   + 相对目标 p0+51200（一整圈，依据 .cl/memory/ motor_counts_per_rev=51200）
  * 判据（对标 ProdRun）：reached=1 且 |enc|≥25600 且
  *   s2ga/s2gb/s2vsa/s2vsb/ola/olb 全 0 且 GSTAT.drv_err=0
- * 位表依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
+ * 位表依据 TMC5160A_Datasheet_Rev1.14.ch06.p056.md:
  *   s2vsa=bit12 s2vsb=bit13 s2ga=bit27 s2gb=bit28 ola=bit29 olb=bit30;
  *   GSTAT.drv_err=bit1 (ch06.p033) */
 

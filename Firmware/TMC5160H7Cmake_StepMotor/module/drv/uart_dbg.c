@@ -5,7 +5,7 @@
  * @版本: v1.0
  * @说明: USART1 调试输出封装（与 rtt_dbg 双通道并行，不互斥）
  * @依据: Core/Src/usart.c MX_USART1_UART_Init (Baud=115200, Word=8B, Stop=1, HSI 64MHz)
- *        + .cl/datasheet/ 串口时序: 115200 8N1 → 10bit/frame ≈ 86.8us/byte
+ *        +  串口时序: 115200 8N1 → 10bit/frame ≈ 86.8us/byte
  *        依据 .cl/memory/config.md: stm32_usart1clk=64MHz HSI
  * @注意: 发送用 HAL_UART_Transmit 阻塞式，超时 100ms；ISR 中禁止调用（阻塞）
  * @受限: 缓冲 128B static (依据 .cl/memory/ STACK_SIZE, 禁栈大缓冲) + snprintf 有界

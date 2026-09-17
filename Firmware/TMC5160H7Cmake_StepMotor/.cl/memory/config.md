@@ -3,6 +3,13 @@
 > 写纪律见 `details/init.md`「memory 写纪律」：每条单行 ≤120 字符 / 只写当前有效值 / 禁过程叙事 / ≤200 行·12KB。
 > 排查过程（s2gb/Kelvin 等）已移 `experience/log.md`；清理前全量快照见 git 提交 8db5a7b。
 
+## 定论（已否决 / 已解决 · 勿重开）
+spi_speed_downgrade = 否决: 6.45Mbps 过快致位翻转(降速论证伪)  依据: SOAK r3 22.4万帧 0 翻转 日期: 2026-09-10 来源: 实测
+tmc_clk_12m_s2gb = 否决: 降 TMC_CLK 12MHz 可解 s2gb(实测 enc=3072 更差)  依据: log 2026-09-11 日期: 2026-09-11 来源: 实测
+u2_s2gb_sw = 否决: s2gb 属斩波/驱动档位/SPI 速率软件问题(斩波双模式+DRVS×CS 12格+SPI 降速全穷尽)  依据: log 2026-09-10/11 日期: 2026-09-11 来源: 实测
+spi_spe_always_on = 否决: SPE 常开可省时(A/B 实测 tag0 -0.13us≈0, 保留逐帧开关)  依据: 实测 日期: 2026-09-17 来源: 实测
+u2_s2gb = 已解决: B 相 s2gb/100%丢步, 根因=RS-B 开尔文(SRBH/SRBL)走线被铺铜破坏+跳线错位  依据: 修后 ManualRun 2×整圈零丢步 日期: 2026-09-11 来源: 你定案
+
 ## 电机参数 (57CME13)
 motor_phases = 2                    依据: 电机规格书 日期: 2026-08-24 来源: 推导
 motor_hold_torque = 1.3 N·m         依据: 电机规格书 日期: 2026-08-24 来源: 推导
@@ -52,8 +59,6 @@ stm32_spi_prescaler = 16            依据: SPI3 kernel=PLL3Q 103.2MHz ÷16=6.45
 stm32_spi_baudrate = 6.45 Mbit/s    依据: 103.2MHz/16; 寄存器级实测写 9.2us/读 23.6us(含片选) 日期: 2026-09-17 来源: 实测校准
 stm32_spi_kernel_clk = 103.2 MHz    依据: PLL3 HSE8/M5 ×N129 /Q2 日期: 2026-09-09 来源: CubeMX+推导
 tmc5160_tCSH_us = 5                 依据: tCSH>2×tCLK+10ns=320ns@6.45MHz, 读写帧后加 5us 日期: 2026-09-17 来源: datasheet
-spi_spe_always_on_no_gain = true    依据: A/B 实测 SPE 常开无收益(tag0 -0.13us), 保留逐帧开关 日期: 2026-09-17 来源: 实测
-
 ## TMC5160 通讯事实
 tmc5160_spi_status_byte = 0x38      依据: byte[39:32]=SPI_STATUS, 静止态=0x38(ch04 §4.1.2) 日期: 2026-09-09 来源: datasheet+实测
 tmc5160_ihold_irun_readable = false 依据: IHOLD_IRUN(0x10) 只写, 回读恒 0 日期: 2026-09-09 来源: datasheet+实测
@@ -61,8 +66,6 @@ tmc5160_enc_const_readable = false  依据: ENC_CONST(0x3A) 标 W, 回读恒 0; 
 tmc5160_spi_fidelity_6p45M = verified 依据: SOAK r3 运转下 XTARGET 222170 帧 0 翻转 日期: 2026-09-10 来源: 实测
 tmc5160_spi_all_zero_reads = 无 VM 供电时 MISO 恒 0 依据: 判活须用非零签名(CHOPCONF), 非等值回显 日期: 2026-09-10 来源: 实测
 u1_chip_populated = true            依据: U1 已焊 + SPI/CAN 测试通过 日期: 2026-09-16 来源: 实测
-u2_root_cause_kelvin = RS-B 开尔文(SRBH/SRBL)走线被铺铜破坏+跳线错位 依据: log 2026-09-11 日期: 2026-09-11 来源: 你定案
-u2_kelvin_fix_regression_pass = true 依据: 跳线修正后 ManualRun 2×整圈零丢步 ds=81140061 日期: 2026-09-11 来源: 实测
 
 ## 无编码器回零 (StallGuard2)
 home_velocity_rps = 2               依据: ch13 §13.4 回零推荐 1~5RPS 区间 日期: 2026-09-12 来源: 推导

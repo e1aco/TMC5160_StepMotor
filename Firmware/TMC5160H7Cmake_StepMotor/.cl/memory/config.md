@@ -93,6 +93,11 @@ chopper_tbl = 3                     依据: ch01.p052 CHOPCONF bit[16:15]=54clk 
 chopper_hstart = 4                  依据: ch01.p052 CHOPCONF bit[6:4] 日期: 2026-09-10 来源: 代码核对
 chopper_hend = 3                    依据: ch01.p052 CHOPCONF bit[10:7] 日期: 2026-09-10 来源: 代码核对
 
+## FDCAN2 配置
+fdcan2_baud = 500 kbit/s            依据: NominalPrescaler=1/Seg1=13/Seg2=2, 16TQ@8MHz HSE 日期: 2026-09-16 来源: CubeMX+推导
+fdcan2_autoretransmit = ENABLE      依据: CubeMX 配置 日期: 2026-09-16 来源: CubeMX
+fdcan2_msgram = ExtFiltersNbr=1/RxFifo0ElmtsNbr=8/TxFifoQueueElmtsNbr=3 依据: 移植适配, CubeMX 重生成需保留 日期: 2026-09-16 来源: 源工程
+
 ## STM32 时钟树
 stm32_hse = 8 MHz                   依据: CubeMX .ioc 日期: 2026-08-24 来源: 推导
 stm32_sysclk = 480 MHz              依据: PLL1 8MHz/1×120/2 日期: 2026-08-24 来源: 推导

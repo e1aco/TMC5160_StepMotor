@@ -50,7 +50,7 @@
  *       0=生产版关闭，不跑
  * 消费: Core/Src/main.c 上电测试段(#if SPI_MANUAL→COMM_Test_ManualRun())
  * 实现: test/comm_test.c COMM_Test_ManualRun()
- * 基线=CHOPCONF 0x000100C5(TBL=36clk/HEND=1) + DRV_CONF 复位缺省(medium)
+ * 基线=CHOPCONF 0x000100C5(TBL=36clk/HEND=1) + 驱动配置寄存器复位缺省(medium)
  * + 保留 SHORT_CONF/IHOLD_IRUN/GCONF 现值（约束3: memory 实测校准优先）
  * 现状=0：2026-09-10 实测 FAIL(reached=1 act=33321 enc=8717
  * ds=D1140067: s2gb=1 olb=1 gs=02) → 手册基线仍锁桥,
@@ -80,11 +80,11 @@
 #if DBG_OPEN
 /* 通道开关 UART_DBG：1=USART1(PB14/PB15, 115200)调试输出开（回传主通道）；
  * 0=该通道关闭。仅 DBG_OPEN=1 时本值有效 */
-#define UART_DBG    1   /* USART1 调试输出 (PB14/PB15, 115200) */
+#define UART_DBG    0   /* USART1 调试输出 —— 已关闭（2026-09-18 切 RTT） */
 /* 通道开关 RTT_DBG：1=SEGGER RTT 输出开；0=关。
- * 现状=0（用户 2026-09-09 决定：无 J-Link 在位；接口与实现保留，
- * 重开只需本宏→1）。仅 DBG_OPEN=1 时本值有效 */
-#define RTT_DBG     0   /* SEGGER RTT 输出 —— 当前关闭 */
+ * 2026-09-18: J-Link 就位，开启 RTT 替代 USART1 调试回传。
+ * 仅 DBG_OPEN=1 时本值有效 */
+#define RTT_DBG     1   /* SEGGER RTT 输出 (J-Link RTT Viewer) */
 #else
 /* 总闸关闭时两通道强制为 0（与上方取值无关） */
 #define UART_DBG    0

@@ -23,20 +23,22 @@
 #define MOTION_GROUP_2  0x02
 #define MOTION_GROUP_3  0x03
 #define MOTION_GROUP_4  0x04
+#define MOTION_GROUP_5  0x05   /* 600rpm 生产高速档 */
+#define MOTION_GROUP_6  0x06   /* 1442rpm 极限运行档（生产禁用，见 tmc5160.c 组6注记） */
 
 /* ==== 接口 ==== */
-void           USR_MOTOR_Init(void);
-TMC5160_CHIP_T *USR_MOTOR_GetChip(uint8_t motor);
-void           USR_MOTOR_MoveTo(uint8_t motor, int32_t target);
-void           USR_MOTOR_MoveBy(uint8_t motor, int32_t offset);
-void           USR_MOTOR_SetVelocity(uint8_t motor, int32_t velocity);
-void           USR_MOTOR_Stop(uint8_t motor);
-void           USR_MOTOR_ApplyProfile(uint8_t motor, uint8_t group);
-int32_t        USR_MOTOR_GetPosition(uint8_t motor);
-int32_t        USR_MOTOR_GetEncoderPosition(uint8_t motor);
-int32_t        USR_MOTOR_GetEncoderDeviation(uint8_t motor);
-uint8_t        USR_MOTOR_GetStatus(uint8_t motor);
-uint8_t        USR_MOTOR_GetStage(uint8_t motor);
+void           MOTOR_Init(void);
+TMC5160_CHIP_T *MOTOR_GetChip(uint8_t motor);
+void           MOTOR_MoveTo(uint8_t motor, int32_t target);
+void           MOTOR_MoveBy(uint8_t motor, int32_t offset);
+void           MOTOR_SetVelocity(uint8_t motor, int32_t velocity);
+void           MOTOR_Stop(uint8_t motor);
+void           MOTOR_ApplyProfile(uint8_t motor, uint8_t group);
+int32_t        MOTOR_GetPosition(uint8_t motor);
+int32_t        MOTOR_GetEncoderPosition(uint8_t motor);
+int32_t        MOTOR_GetEncoderDeviation(uint8_t motor);
+uint8_t        MOTOR_GetStatus(uint8_t motor);
+uint8_t        MOTOR_GetStage(uint8_t motor);
 
 #endif /* MOTOR_CTRL_H */
 

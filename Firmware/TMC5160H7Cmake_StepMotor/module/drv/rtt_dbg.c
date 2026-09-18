@@ -60,3 +60,30 @@ void RTT_DBG_Flush(void)
 {
     /* RTT 后台由 J-Link 自动读取，无需显式刷新 */
 }
+
+/* ==== printf retarget → RTT ==== */
+
+/**
+ * @说明 newlib-nano _write 覆盖：将标准 printf/fprintf 输出重定向到 RTT Channel 0
+ *       替代 syscalls.c 中的默认实现（默认写 SWO/ITM 或无输出）
+ *       受 RTT_DBG 开关控制，关闭时返回 -1（抑制输出）
+ * @输入 file: 文件描述符（stdout=1, stderr=2）
+ *       ptr: 数据指针; len: 数据长度
+ * @输出 实际写入字节数
+ */
+#if RTT_DBG
+int _write(int file, char *ptr, int len)
+{
+    (void)file;
+    SEGGER_RTT_Write(RTT_DBG_CHANNEL, ptr, (unsigned)len);
+    return len;
+}
+#else
+int _write(int file, char *ptr, int len)
+{
+    (void)file;
+    (void)ptr;
+    (void)len;
+    return -1;
+}
+#endif

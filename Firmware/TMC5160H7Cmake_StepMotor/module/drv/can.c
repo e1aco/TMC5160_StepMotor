@@ -20,6 +20,7 @@
  * @依赖: HAL_FDCAN
  ****************************************************************************/
 #include "drv/can.h"
+#include "drv/tmc5160.h"
 #include "algo/queue.h"
 #include "app/motor_ctrl.h"
 #include "app/closed_loop.h"
@@ -42,9 +43,7 @@ typedef struct {
 
 static CAN_PENDING_T s_pending[2];
 
-/*******************************************************************************************
- *  内部函数部分
-********************************************************************************************/
+/* ==== 内部函数 ==== */
 
 /**
  * @输入 无
@@ -167,16 +166,14 @@ static uint8_t S_CalcChecksum(uint8_t *data)
     return sum;
 }
 
-/*******************************************************************************************
- *  驱动函数部分
-********************************************************************************************/
+/* ==== 驱动原语 ==== */
 
 /**
  * @输入 无
  * @输出 无
  * @说明 CAN 驱动初始化：过滤器 + 启动中断接收
  */
-void DRV_CAN_Init(void)
+void CAN_Init(void)
 {
     S_FilterConfig();
     S_StartRx();
@@ -187,7 +184,7 @@ void DRV_CAN_Init(void)
  * @输出 0=成功, 1=发送失败
  * @说明 对外发送接口
  */
-uint8_t DRV_CAN_Send(uint32_t id, uint8_t *data)
+uint8_t CAN_Send(uint32_t id, uint8_t *data)
 {
     return S_SendMsg(id, data);
 }
@@ -199,7 +196,7 @@ uint8_t DRV_CAN_Send(uint32_t id, uint8_t *data)
  *        仅等 1 个空闲时，同一 ID 连续多帧会被 CAN 核跨槽乱序仲裁，
  *        监控端按行还原时会错位（源工程实测遥测串扰根因）
  */
-uint8_t DRV_CAN_SendWait(uint32_t id, uint8_t *data)
+uint8_t CAN_SendWait(uint32_t id, uint8_t *data)
 {
     uint32_t timeout = 100000;
 
@@ -211,18 +208,7 @@ uint8_t DRV_CAN_SendWait(uint32_t id, uint8_t *data)
     return S_SendMsg(id, data);
 }
 
-/*******************************************************************************************
- *  用户函数部分
-********************************************************************************************/
-
-/**
- * @输入 无
- * @输出 无
- * @说明 CAN 协议模块初始化
- */
-void USR_CAN_Init(void)
-{
-}
+/* ==== 协议分发与反馈组装 ==== */
 
 /**
  * @输入 motor: 电机编号(U1/U2/ALL)
@@ -285,7 +271,7 @@ static void S_CheckCompletion(void)
             continue;
         }
         {
-            TMC5160_CHIP_T *chip = USR_MOTOR_GetChip(s_pending[i].motor);
+            TMC5160_CHIP_T *chip = MOTOR_GetChip(s_pending[i].motor);
             int32_t pos;
             int32_t vel;
             uint32_t now = HAL_GetTick();
@@ -297,19 +283,19 @@ static void S_CheckCompletion(void)
                 s_pending[i].active = 0;
                 continue;
             }
-            pos = USR_TMC5160_GetPosition(chip);
-            vel = USR_TMC5160_GetVelocity(chip);
+            pos = TMC5160_GetPosition(chip);
+            vel = TMC5160_GetVelocity(chip);
             /* 到达：位置吻合且速度归零；超时：回绕安全的差值判 */
             arrived = (pos == s_pending[i].target && 0 == vel);
             expired = (0 <= (int32_t)(now - s_pending[i].deadline));
             if (0U != arrived || 0U != expired)
             {
-                uint8_t status = USR_MOTOR_GetStatus(s_pending[i].motor);
-                uint8_t stage = USR_MOTOR_GetStage(s_pending[i].motor);
-                int32_t dev = USR_MOTOR_GetEncoderPosition(s_pending[i].motor);
+                uint8_t status = MOTOR_GetStatus(s_pending[i].motor);
+                uint8_t stage = MOTOR_GetStage(s_pending[i].motor);
+                int32_t dev = MOTOR_GetEncoderPosition(s_pending[i].motor);
 
                 s_pending[i].active = 0;
-                USR_CAN_SendMotionFeedback(s_pending[i].motor, dev,
+                CAN_SendMotionFeedback(s_pending[i].motor, dev,
                                            status, stage);
             }
         }
@@ -321,7 +307,7 @@ static void S_CheckCompletion(void)
  * @输出 无
  * @说明 主循环调用，从队列取命令并解析执行
  */
-void USR_CAN_Process(void)
+void CAN_Process(void)
 {
     uint8_t *cmd_data;
     CAN_CMD_T cmd;
@@ -355,75 +341,75 @@ void USR_CAN_Process(void)
     {
     case CMD_ABS_POS:
     {
-        int32_t dev = USR_MOTOR_GetEncoderPosition(cmd.motor);
-        uint8_t status = USR_MOTOR_GetStatus(cmd.motor);
-        uint8_t stage = USR_MOTOR_GetStage(cmd.motor);
+        int32_t dev = MOTOR_GetEncoderPosition(cmd.motor);
+        uint8_t status = MOTOR_GetStatus(cmd.motor);
+        uint8_t stage = MOTOR_GetStage(cmd.motor);
 
-        USR_MOTOR_ApplyProfile(cmd.motor, cmd.param);
-        USR_MOTOR_MoveTo(cmd.motor, cmd.value);
+        MOTOR_ApplyProfile(cmd.motor, cmd.param);
+        MOTOR_MoveTo(cmd.motor, cmd.value);
         /* ACK 清 bit0（旧到位残留），到位后补终态帧 */
         S_ArmCompletion(cmd.motor, cmd.value, cmd.value);
-        USR_CAN_SendMotionFeedback(cmd.motor, dev,
+        CAN_SendMotionFeedback(cmd.motor, dev,
                                    (uint8_t)(status & (~STATUS_DONE)), stage);
         break;
     }
 
     case CMD_REL_CW:
     {
-        int32_t dev = USR_MOTOR_GetEncoderPosition(cmd.motor);
-        uint8_t status = USR_MOTOR_GetStatus(cmd.motor);
-        uint8_t stage = USR_MOTOR_GetStage(cmd.motor);
-        int32_t t1 = USR_MOTOR_GetPosition(MOTOR_CTRL_U1) + cmd.value;
-        int32_t t2 = USR_MOTOR_GetPosition(MOTOR_CTRL_U2) + cmd.value;
+        int32_t dev = MOTOR_GetEncoderPosition(cmd.motor);
+        uint8_t status = MOTOR_GetStatus(cmd.motor);
+        uint8_t stage = MOTOR_GetStage(cmd.motor);
+        int32_t t1 = MOTOR_GetPosition(MOTOR_CTRL_U1) + cmd.value;
+        int32_t t2 = MOTOR_GetPosition(MOTOR_CTRL_U2) + cmd.value;
 
-        USR_MOTOR_ApplyProfile(cmd.motor, cmd.param);
-        USR_MOTOR_MoveBy(cmd.motor, cmd.value);
+        MOTOR_ApplyProfile(cmd.motor, cmd.param);
+        MOTOR_MoveBy(cmd.motor, cmd.value);
         S_ArmCompletion(cmd.motor, t1, t2);
-        USR_CAN_SendMotionFeedback(cmd.motor, dev,
+        CAN_SendMotionFeedback(cmd.motor, dev,
                                    (uint8_t)(status & (~STATUS_DONE)), stage);
         break;
     }
 
     case CMD_REL_CCW:
     {
-        int32_t dev = USR_MOTOR_GetEncoderPosition(cmd.motor);
-        uint8_t status = USR_MOTOR_GetStatus(cmd.motor);
-        uint8_t stage = USR_MOTOR_GetStage(cmd.motor);
-        int32_t t1 = USR_MOTOR_GetPosition(MOTOR_CTRL_U1) - cmd.value;
-        int32_t t2 = USR_MOTOR_GetPosition(MOTOR_CTRL_U2) - cmd.value;
+        int32_t dev = MOTOR_GetEncoderPosition(cmd.motor);
+        uint8_t status = MOTOR_GetStatus(cmd.motor);
+        uint8_t stage = MOTOR_GetStage(cmd.motor);
+        int32_t t1 = MOTOR_GetPosition(MOTOR_CTRL_U1) - cmd.value;
+        int32_t t2 = MOTOR_GetPosition(MOTOR_CTRL_U2) - cmd.value;
 
-        USR_MOTOR_ApplyProfile(cmd.motor, cmd.param);
-        USR_MOTOR_MoveBy(cmd.motor, -cmd.value);
+        MOTOR_ApplyProfile(cmd.motor, cmd.param);
+        MOTOR_MoveBy(cmd.motor, -cmd.value);
         S_ArmCompletion(cmd.motor, t1, t2);
-        USR_CAN_SendMotionFeedback(cmd.motor, dev,
+        CAN_SendMotionFeedback(cmd.motor, dev,
                                    (uint8_t)(status & (~STATUS_DONE)), stage);
         break;
     }
 
     case CMD_VELOCITY:
     {
-        int32_t dev = USR_MOTOR_GetEncoderPosition(cmd.motor);
-        uint8_t status = USR_MOTOR_GetStatus(cmd.motor);
-        uint8_t stage = USR_MOTOR_GetStage(cmd.motor);
+        int32_t dev = MOTOR_GetEncoderPosition(cmd.motor);
+        uint8_t status = MOTOR_GetStatus(cmd.motor);
+        uint8_t stage = MOTOR_GetStage(cmd.motor);
 
-        USR_MOTOR_ApplyProfile(cmd.motor, cmd.param);
-        USR_MOTOR_SetVelocity(cmd.motor, cmd.value);
-        USR_CAN_SendMotionFeedback(cmd.motor, dev,
+        MOTOR_ApplyProfile(cmd.motor, cmd.param);
+        MOTOR_SetVelocity(cmd.motor, cmd.value);
+        CAN_SendMotionFeedback(cmd.motor, dev,
                                    (uint8_t)(status & (~STATUS_DONE)), stage);
         break;
     }
 
     case CMD_STOP:
     {
-        int32_t dev = USR_MOTOR_GetEncoderPosition(cmd.motor);
-        uint8_t status = USR_MOTOR_GetStatus(cmd.motor);
-        int32_t t1 = USR_MOTOR_GetPosition(MOTOR_CTRL_U1);
-        int32_t t2 = USR_MOTOR_GetPosition(MOTOR_CTRL_U2);
+        int32_t dev = MOTOR_GetEncoderPosition(cmd.motor);
+        uint8_t status = MOTOR_GetStatus(cmd.motor);
+        int32_t t1 = MOTOR_GetPosition(MOTOR_CTRL_U1);
+        int32_t t2 = MOTOR_GetPosition(MOTOR_CTRL_U2);
 
-        USR_MOTOR_Stop(cmd.motor);
+        MOTOR_Stop(cmd.motor);
         /* 停止即以当前位置为目标，静止后补终态帧（bit0 真实） */
         S_ArmCompletion(cmd.motor, t1, t2);
-        USR_CAN_SendMotionFeedback(cmd.motor, dev,
+        CAN_SendMotionFeedback(cmd.motor, dev,
                                    (uint8_t)(status & (~STATUS_DONE)), 0);
         break;
     }
@@ -433,13 +419,13 @@ void USR_CAN_Process(void)
         break;
 
     case CMD_CL_ENABLE:
-        USR_CLOSEDLOOP_Enable(cmd.motor);
-        USR_CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
+        CLOSEDLOOP_Enable(cmd.motor);
+        CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
         break;
 
     case CMD_CL_DISABLE:
-        USR_CLOSEDLOOP_Disable(cmd.motor);
-        USR_CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
+        CLOSEDLOOP_Disable(cmd.motor);
+        CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
         break;
 
     case CMD_HOME:
@@ -447,12 +433,12 @@ void USR_CAN_Process(void)
         /* 无编码器回零：value bit0=方向(0负/1正)，param 预留；
          * 仅 U1/U2 单电机（ALL/非法拒绝）；异步执行，完成由 Tick 发反馈 */
         uint8_t dir = (0UL != ((uint32_t)cmd.value & 0x01UL)) ?
-                      HOME_DIR_POSITIVE : HOME_DIR_NEGATIVE;
+                      TMC5160_HOME_DIR_POSITIVE : TMC5160_HOME_DIR_NEGATIVE;   /* 非零=正向 */
 
         S_Disarm(cmd.motor);
-        if (0U == USR_HOME_Start(cmd.motor, dir))
+        if (0U == HOME_Start(cmd.motor, dir))
         {
-            USR_CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
+            CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
         }
         break;
     }
@@ -464,14 +450,14 @@ void USR_CAN_Process(void)
         S_Disarm(cmd.motor);
         if (MOTOR_CTRL_ALL == cmd.motor)
         {
-            USR_TMC5160_EStop(TMC5160_CHIP_1);
-            USR_TMC5160_EStop(TMC5160_CHIP_2);
-            USR_CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
+            TMC5160_EStop(TMC5160_CHIP_1);
+            TMC5160_EStop(TMC5160_CHIP_2);
+            CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
         }
         else if (MOTOR_CTRL_U1 == cmd.motor || MOTOR_CTRL_U2 == cmd.motor)
         {
-            USR_TMC5160_EStop(cmd.motor);
-            USR_CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
+            TMC5160_EStop(cmd.motor);
+            CAN_SendMotionFeedback(cmd.motor, 0, 0, 0);
         }
         break;
     }
@@ -487,20 +473,20 @@ void USR_CAN_Process(void)
  * @说明 发送运动反馈帧 (ID: 0x1AA55F43)；byte[6] 保护状态:
  *        bit0=OTPW, bit1=OT, bit2=drv_err(GSTAT), bit3=S2GA, bit4=S2GB,
  *        bit5=S2VSA, bit6=S2VSB, bit7=失步(ENC_STATUS.deviation_warn)
- * 依据 .cl/datasheet/pages/TMC5160A_Datasheet_Rev1.14.ch06.p033.md: DRV_STATUS/GSTAT 位定义
+ * 依据 TMC5160A_Datasheet_Rev1.14.ch06.p033.md: DRVSTATUS/GSTAT 位定义
  */
-uint8_t USR_CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
+uint8_t CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
                                    uint8_t status, uint8_t stage)
 {
     uint8_t tx_data[8];
     uint8_t protect_flags = 0;
-    TMC5160_CHIP_T *chip = USR_MOTOR_GetChip(motor);
+    TMC5160_CHIP_T *chip = MOTOR_GetChip(motor);
 
     (void)stage;
     if (chip != NULL)
     {
-        uint32_t drv_status = USR_TMC5160_GetDrvStatus(chip);
-        uint32_t gstat = USR_TMC5160_GetGStat(chip);
+        uint32_t drv_status = TMC5160_GetDrvStatus(chip);
+        uint32_t gstat = TMC5160_GetGStat(chip);
         if (drv_status & (1u << 26)) protect_flags |= 0x01; /* OTPW  预过温 */
         if (drv_status & (1u << 25)) protect_flags |= 0x02; /* OT    过温关断 */
         if (gstat & (1u << 1))       protect_flags |= 0x04; /* drv_err 驱动错误 */
@@ -517,7 +503,7 @@ uint8_t USR_CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
     tx_data[6] = protect_flags;
     tx_data[7] = S_CalcChecksum(tx_data);
 
-    return DRV_CAN_Send(CAN_TX_ID, tx_data);
+    return CAN_Send(CAN_TX_ID, tx_data);
 }
 
 /**
@@ -525,7 +511,7 @@ uint8_t USR_CAN_SendMotionFeedback(uint8_t motor, int32_t pos,
  * @输出 0=成功, 1=发送失败
  * @说明 发送调参反馈帧 (ID: 0x1AA55F43)
  */
-uint8_t USR_CAN_SendPidFeedback(uint8_t motor, uint8_t pid_type, int32_t value)
+uint8_t CAN_SendPidFeedback(uint8_t motor, uint8_t pid_type, int32_t value)
 {
     uint8_t tx_data[8];
 
@@ -535,5 +521,5 @@ uint8_t USR_CAN_SendPidFeedback(uint8_t motor, uint8_t pid_type, int32_t value)
     tx_data[6] = CMD_PID_ADJUST;
     tx_data[7] = S_CalcChecksum(tx_data);
 
-    return DRV_CAN_Send(CAN_TX_ID, tx_data);
+    return CAN_Send(CAN_TX_ID, tx_data);
 }

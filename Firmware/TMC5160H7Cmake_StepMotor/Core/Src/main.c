@@ -114,17 +114,16 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   /* TMC5160 外部时钟: TIM4_CH3 PWM 输出 15MHz (TIM4CLK=240MHz/(PSC=0)/(ARR=15+1))
-   * 必须在 USR_TMC5160_Init 前启动，否则芯片无 fCLK 不工作 */
+   * 必须在 TMC5160_Init 前启动，否则芯片无 fCLK 不工作 */
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
 
   QUEUE_Init(&g_queue_st);
-  DRV_CAN_Init();
-  USR_CAN_Init();
-  USR_TMC5160_Init();
-  USR_MOTOR_Init();
-  USR_CLOSEDLOOP_Init();
+  CAN_Init();
+  TMC5160_Init();
+  MOTOR_Init();
+  CLOSEDLOOP_Init();
   UART_DBG_Init();
-  //RTT_DBG_Init(); // RTT初始化
+  RTT_DBG_Init(); /* RTT 初始化（J-Link RTT Viewer 调试回传） */
   UART_DBG_Str("UART ready 115200\r\n");
   RTT_DBG_Str("RTT ready\r\n");
   UART_DBG_Str("[BOOT] TMC5160H7 StepMotor\r\n");
@@ -171,6 +170,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* [TM] tag2=主循环单圈(抽稀500:1,避RTT回传反压) / tag5=1Hz心跳SPI诊断块
+     * 依据 probe.md DWT序列 + memory stm32_dwt_cyccnt_clk=480MHz(CPU=SYSCLK,实测481MHz 2026-09-17)
+     * 回传经 printf->_write->RTT Ch0(09-18切RTT,串口不可用),生产版空宏零开销 */
+#ifdef CL_TIMING_MEASURE
+    static uint32_t s_tm2_cnt = 0;
+    ++s_tm2_cnt;
+    if ((s_tm2_cnt % 500U) == 0U)
+    {
+        TEST_TIM_Start(2); /* 抽稀: 每500圈测一圈, Start/Stop配对 */
+    }
+#else
+    TEST_TIM_Start(2); /* 生产版空宏 */
+#endif
 #ifdef CL_TIMING_MEASURE
     /* 3-wire Saleae 连续触发: 每 10ms 一次 U2 GSTAT 读, PA4 窄脉冲作同步 */
     {
@@ -179,12 +191,12 @@ int main(void)
         {
             s_saleae_last = HAL_GetTick();
             TEST_SPI_SaleaePulse();
-            (void)DRV_TMC5160_ReadReg(TMC5160_CHIP_2, 0x01); /* GSTAT */
+            (void)TMC5160_SpiRead(TMC5160_CHIP_2, 0x01); /* GSTAT */
         }
     }
 #endif
-    USR_CAN_Process();
-    USR_HOME_Tick();
+    CAN_Process();
+    HOME_Tick();
     COMM_Test_CAN_Heartbeat();
     /* 双通道心跳遥测：1Hz 打印双电机实际/编码器位置 (USART1 115200 + RTT) */
     {
@@ -193,30 +205,32 @@ int main(void)
       if ((now - s_rtt_last_tick) >= 1000)
       {
         s_rtt_last_tick = now;
+        TEST_TIM_Start(5); /* tag5=1Hz心跳SPI诊断块(含4次读事务) */
         /* U2 追加运动诊断量: v=VACTUAL(0x22) rs=RAMP_STAT cs=CS_ACTUAL[9:0]
-         * ds=DRV_STATUS(OL/OT/S2 位) gs=GSTAT —— 遥测先行定位抖动 (retrieval.md) */
+         * ds=DRVSTATUS(OL/OT/S2 位) gs=GSTAT —— 遥测先行定位抖动 (retrieval.md) */
         {
-          TMC5160_CHIP_T *u2 = USR_MOTOR_GetChip(MOTOR_CTRL_U2);
-          uint32_t ds = USR_TMC5160_GetDrvStatus(u2);
+          TMC5160_CHIP_T *u2 = MOTOR_GetChip(MOTOR_CTRL_U2);
+          uint32_t ds = TMC5160_GetDrvStatus(u2);
           UART_DBG_Printf("[t=%u] U1 act=%d enc=%d | U2 act=%d enc=%d "
                           "v=%d rs=%lX cs=%lu ds=%08lX gs=%02X\r\n",
                           (unsigned)now,
-                          (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U1),
-                          (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
-                          (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U2),
-                          (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U2),
-                          (int)USR_TMC5160_GetVelocity(u2),
-                          (unsigned long)USR_TMC5160_GetRampStat(u2),
+                          (int)MOTOR_GetPosition(MOTOR_CTRL_U1),
+                          (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
+                          (int)MOTOR_GetPosition(MOTOR_CTRL_U2),
+                          (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U2),
+                          (int)TMC5160_GetVelocity(u2),
+                          (unsigned long)TMC5160_GetRampStat(u2),
                           (unsigned long)(ds & 0x3FFUL),
                           (unsigned long)ds,
-                          (unsigned int)USR_TMC5160_GetGStat(u2));
+                          (unsigned int)TMC5160_GetGStat(u2));
         }
         RTT_DBG_Printf("[t=%u] U1 act=%d enc=%d | U2 act=%d enc=%d\r\n",
                        (unsigned)now,
-                       (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U1),
-                       (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
-                       (int)USR_MOTOR_GetPosition(MOTOR_CTRL_U2),
-                       (int)USR_MOTOR_GetEncoderPosition(MOTOR_CTRL_U2));
+                       (int)MOTOR_GetPosition(MOTOR_CTRL_U1),
+                       (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U1),
+                       (int)MOTOR_GetPosition(MOTOR_CTRL_U2),
+                       (int)MOTOR_GetEncoderPosition(MOTOR_CTRL_U2));
+        TEST_TIM_Stop(5);
       }
     }
 
@@ -224,10 +238,18 @@ int main(void)
     // if (g_cl_tick_flag)
     // {
     //   g_cl_tick_flag = 0;
-    //   USR_CLOSEDLOOP_Tick(MOTOR_CTRL_U1);
-    //   USR_CLOSEDLOOP_Tick(MOTOR_CTRL_U2);
+    //   CLOSEDLOOP_Tick(MOTOR_CTRL_U1);
+    //   CLOSEDLOOP_Tick(MOTOR_CTRL_U2);
     // }
 
+#ifdef CL_TIMING_MEASURE
+    if ((s_tm2_cnt % 500U) == 0U)
+    {
+        TEST_TIM_Stop(2); /* 与顶部Start配对, 1次/500圈 */
+    }
+#else
+    TEST_TIM_Stop(2); /* 生产版空宏 */
+#endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

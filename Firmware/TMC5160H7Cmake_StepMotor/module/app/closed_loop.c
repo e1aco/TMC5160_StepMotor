@@ -5,9 +5,9 @@
  * @版本: v1.0
  * @说明: 闭环控制模块（编码器反馈 + 补步；PID 预留未接入控制回路）
  * @来源: 自 TMC5160_StepMotor(F407) 移植归一
- * @变更点: 移除 Init 中 DRV_TIMER_StartClosedLoop()——目标板无 TIM7，
+ * @变更点: 移除 Init 中源工程的闭环节拍定时器启动调用——目标板无 TIM7，
  *          闭环节拍由外部提供，当前保持源工程的注释态（闭环未自动运行）
- * @依赖: usr/tmc5160_usr, usr/motor_ctrl, usr/pid
+ * @依赖: drv/tmc5160, app/motor_ctrl, algo/pid
  ****************************************************************************/
 #include "app/closed_loop.h"
 #include "algo/pid.h"
@@ -38,9 +38,9 @@ static PID_T s_pid_st;
  * @说明 初始化闭环 PID 参数与命令目标
  * @注意 闭环节拍定时器暂未配置（目标板无 TIM7），Tick 由主循环按需调用
  */
-void USR_CLOSEDLOOP_Init(void)
+void CLOSEDLOOP_Init(void)
 {
-    USR_PID_Init(&s_pid_st,
+    PID_Init(&s_pid_st,
                  CL_PID_KP_DEFAULT, CL_PID_KI_DEFAULT, CL_PID_KD_DEFAULT,
                  CL_PID_OUT_MIN, CL_PID_OUT_MAX);
     s_cmd_target[0] = 0;
@@ -52,7 +52,7 @@ void USR_CLOSEDLOOP_Init(void)
  * @输出 无
  * @说明 设置闭环命令基准目标，由电机控制层在发出运动指令时调用
  */
-void USR_CLOSEDLOOP_SetTarget(uint8_t motor, int32_t target)
+void CLOSEDLOOP_SetTarget(uint8_t motor, int32_t target)
 {
     if (MOTOR_CTRL_U1 == motor)
     {
@@ -62,7 +62,7 @@ void USR_CLOSEDLOOP_SetTarget(uint8_t motor, int32_t target)
     {
         s_cmd_target[1] = target;
     }
-    USR_PID_Reset(&s_pid_st);
+    PID_Reset(&s_pid_st);
 }
 
 /**
@@ -71,15 +71,18 @@ void USR_CLOSEDLOOP_SetTarget(uint8_t motor, int32_t target)
  * @说明 使能闭环控制，已使能时跳过
  * @注意 状态即时生效（RAM 常驻）
  */
-void USR_CLOSEDLOOP_Enable(uint8_t motor)
+void CLOSEDLOOP_Enable(uint8_t motor)
 {
-    TMC5160_CHIP_T *chip = USR_MOTOR_GetChip(motor);
+    TMC5160_CHIP_T *chip = MOTOR_GetChip(motor);
     if ((void *)0 != chip)
     {
-        if (CLOSED_LOOP_ON == chip->closed_loop) return;
+        if (CLOSED_LOOP_ON == chip->closed_loop)
+        {
+            return;
+        }
         chip->closed_loop = CLOSED_LOOP_ON;
     }
-    USR_PID_Reset(&s_pid_st);
+    PID_Reset(&s_pid_st);
 }
 
 /**
@@ -88,12 +91,15 @@ void USR_CLOSEDLOOP_Enable(uint8_t motor)
  * @说明 禁用闭环控制，已禁用时跳过
  * @注意 状态即时生效（RAM 常驻）
  */
-void USR_CLOSEDLOOP_Disable(uint8_t motor)
+void CLOSEDLOOP_Disable(uint8_t motor)
 {
-    TMC5160_CHIP_T *chip = USR_MOTOR_GetChip(motor);
+    TMC5160_CHIP_T *chip = MOTOR_GetChip(motor);
     if ((void *)0 != chip)
     {
-        if (CLOSED_LOOP_OFF == chip->closed_loop) return;
+        if (CLOSED_LOOP_OFF == chip->closed_loop)
+        {
+            return;
+        }
         chip->closed_loop = CLOSED_LOOP_OFF;
     }
 }
@@ -102,9 +108,9 @@ void USR_CLOSEDLOOP_Disable(uint8_t motor)
  * @输入 motor: 电机编号
  * @输出 uint8_t: 闭环模式状态
  */
-uint8_t USR_CLOSEDLOOP_GetMode(uint8_t motor)
+uint8_t CLOSEDLOOP_GetMode(uint8_t motor)
 {
-    TMC5160_CHIP_T *chip = USR_MOTOR_GetChip(motor);
+    TMC5160_CHIP_T *chip = MOTOR_GetChip(motor);
     if ((void *)0 != chip)
     {
         return chip->closed_loop;
@@ -121,14 +127,17 @@ uint8_t USR_CLOSEDLOOP_GetMode(uint8_t motor)
  *   3. 偏差超出容差 → 补步 + 更新命令目标
  * @注意 不干涉正在运行的斜坡，防止目标跑飞
  */
-void USR_CLOSEDLOOP_Tick(uint8_t motor)
+void CLOSEDLOOP_Tick(uint8_t motor)
 {
     TMC5160_CHIP_T *chip;
     int32_t x_actual, x_enc, cmd_target, deviation, new_target;
     int32_t idx;
 
-    chip = USR_MOTOR_GetChip(motor);
-    if ((void *)0 == chip) return;
+    chip = MOTOR_GetChip(motor);
+    if ((void *)0 == chip)
+    {
+        return;
+    }
 
     if (CLOSED_LOOP_OFF == chip->closed_loop)
     {
@@ -140,14 +149,14 @@ void USR_CLOSEDLOOP_Tick(uint8_t motor)
     cmd_target = s_cmd_target[idx];
 
     /* 斜坡未完成 → 不干涉，让 TMC5160 自行到位 */
-    x_actual = USR_MOTOR_GetPosition(motor);
+    x_actual = MOTOR_GetPosition(motor);
     if (x_actual != cmd_target)
     {
         return;
     }
 
     /* 读编码器，算偏差 */
-    x_enc = USR_MOTOR_GetEncoderPosition(motor);
+    x_enc = MOTOR_GetEncoderPosition(motor);
     deviation = cmd_target - x_enc;
 
     /* 偏差在容差内 → 不动 */
@@ -159,7 +168,7 @@ void USR_CLOSEDLOOP_Tick(uint8_t motor)
 
     /* 偏差超出容差 → 补步，同时更新命令目标 */
     new_target = cmd_target + deviation;
-    USR_CLOSEDLOOP_SetTarget(motor, new_target);
-    USR_TMC5160_MoveTo(chip, new_target);
+    CLOSEDLOOP_SetTarget(motor, new_target);
+    TMC5160_MoveTo(chip, new_target);
 }
 

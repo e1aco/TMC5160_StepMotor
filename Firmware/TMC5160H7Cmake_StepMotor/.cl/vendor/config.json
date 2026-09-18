@@ -1,0 +1,9 @@
+{
+  "openocd": {
+    "board": "",
+    "interface": "",
+    "target": "stm32h7x",
+    "adapter_speed": "",
+    "transport": "swd"
+  }
+}
